@@ -1,15 +1,26 @@
 # dramatiq-workflow
 
+[![Run Tests](https://github.com/Outset-AI/dramatiq-workflow/actions/workflows/test.yml/badge.svg)](https://github.com/Outset-AI/dramatiq-workflow/actions/workflows/test.yml)
+[![PyPI version](https://badge.fury.io/py/dramatiq-workflow.svg)](https://badge.fury.io/py/dramatiq-workflow)
+
 `dramatiq-workflow` allows running workflows (chains and groups of tasks) using
 the Python background task processing library [dramatiq](https://dramatiq.io/).
 
-A workflow allows running tasks in parallel and in sequence. It is a way to
-define a workflow of tasks, a combination of chains and groups in any order and
-nested as needed.
+## Sponsors
+
+[![Outset](docs/outset-logo.svg)](https://outset.ai)
+
+## Motivation
+
+While dramatiq allows running tasks in parallel via groups, and in sequence via
+pipelines, it does not provide a way to combine these two concepts.
+`dramatiq-workflow` aims to fill this gap and allows creating complex
+workflows, similar to the canvas feature in Celery.
 
 ## Features
 
-- Define workflows with tasks running in parallel and in sequence.
+- Define workflows with tasks running in parallel and in sequence using chains
+  and groups.
 - Nest chains and groups of tasks to create complex workflows.
 - Schedules workflows to run in the background using dramatiq.
 
@@ -34,6 +45,9 @@ from dramatiq_workflow import WorkflowMiddleware
 backend = RedisBackend()
 broker.add_middleware(WorkflowMiddleware(backend))
 ```
+
+Please refer to the [dramatiq documentation](https://dramatiq.io/guide.html)
+for details on how to set up a broker.
 
 ## Example
 
@@ -109,8 +123,35 @@ In this example, the execution would look like this:
 5. Task 8 runs once Task 5, 6, and 7 finish
 
 *This is a simplified example. The actual execution order may vary because
-tasks that can run in parallel (i.e., in a Group) are not guaranteed to run in
+tasks that can run in parallel (i.e. in a `Group`) are not guaranteed to run in
 the order they are defined in the workflow.*
+
+## Advanced Usage
+
+### `WithDelay`
+
+The `WithDelay` class allows delaying the execution of a task or a group of tasks:
+
+```python
+from dramatiq_workflow import Chain, Group, WithDelay, Workflow
+
+workflow = Workflow(
+    Chain(
+        task1.message("arguments", "go", "here"),
+        WithDelay(task2.message(), delay=1_000),
+        WithDelay(
+            Group(
+                task3.message(),
+                task4.message(),
+            ),
+            delay=2_000,
+        ),
+    )
+)
+```
+
+In this example, Task 2 will run roughly 1 second after Task 1 finishes, and
+Task 3 and will run 2 seconds after Task 2 finishes.
 
 ## License
 
