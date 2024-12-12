@@ -2,3 +2,4 @@ venv/
 build/
 dist/
 dramatiq_workflow.egg-info/
+__pycache__/
