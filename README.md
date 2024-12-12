@@ -62,11 +62,22 @@ Let's assume we want a workflow that looks like this:
 We can define this workflow as follows:
 
 ```python
+import dramatiq
 from dramatiq_workflow import Workflow, Chain, Group
+
+@dramatiq.actor
+def task1(arg1, arg2, arg3):
+    print("Task 1")
+
+@dramatiq.actor
+def task2():
+    print("Task 2")
+
+# ...
 
 workflow = Workflow(
     Chain(
-        task1.message(),
+        task1.message("arguments", "go", "here"),
         Group(
             Chain(
                 task2.message(),
@@ -91,7 +102,7 @@ workflow.run()  # Schedules the workflow to run in the background
 
 In this example, the execution would look like this:
 
-1. Task 1 runs
+1. Task 1 runs (with arguments `"arguments"`, `"go"`, and `"here"`)
 2. Task 2, 3, and 4 run in parallel once Task 1 finishes
 3. Task 5 runs once Task 2 finishes
 4. Task 6 and 7 run in parallel once Task 4 finishes
@@ -103,4 +114,5 @@ the order they are defined in the workflow.*
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file
+for details.
