@@ -1,0 +1,23 @@
+repos:
+-   repo: https://github.com/asottile/pyupgrade
+    rev: v3.19.0
+    hooks:
+    -   id: pyupgrade
+        args: [--py310-plus]
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+    # Prevent commits to main
+    # - id: no-commit-to-branch
+    #  args: [--branch, dev, --branch, main]
+    # Make sure links to Github are permalinks and not just the latest.
+    - id: check-vcs-permalinks
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.8.2
+    hooks:
+    # Run the linter.
+    - id: ruff
+      args: [ --fix ]
+    # Run the formatter.
+    - id: ruff-format

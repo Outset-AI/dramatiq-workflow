@@ -22,9 +22,7 @@ class WorkflowTests(unittest.TestCase):
         self.message_ids.append(current_id)
         return current_id
 
-    def __make_message(
-        self, message_id, *args, message_options={}, message_timestamp=None, **kwargs
-    ):
+    def __make_message(self, message_id, *args, message_options={}, message_timestamp=None, **kwargs):
         return dramatiq.Message(
             message_id=message_id,
             message_timestamp=message_timestamp or self.message_timestamp,

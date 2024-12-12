@@ -1,0 +1,10 @@
+[tool.ruff]
+line-length = 120
+target-version = 'py310'
+exclude = [".git", "__pypackages__", "venv"]
+
+[tool.ruff.lint]
+fixable = ["ALL"]
+
+[tool.pytest.ini_options]
+norecursedirs = '.git'
