@@ -28,9 +28,11 @@ pip install dramatiq-workflow
 Then, add the `dramatiq-workflow` middleware to your dramatiq broker:
 
 ```python
+from dramatiq.rate_limits.backends import RedisBackend
 from dramatiq_workflow import WorkflowMiddleware
 
-broker.add_middleware(WorkflowMiddleware())
+backend = RedisBackend()
+broker.add_middleware(WorkflowMiddleware(backend))
 ```
 
 ## Example
