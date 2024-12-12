@@ -25,6 +25,14 @@ You can install `dramatiq-workflow` from PyPI:
 pip install dramatiq-workflow
 ```
 
+Then, add the `dramatiq-workflow` middleware to your dramatiq broker:
+
+```python
+from dramatiq_workflow import WorkflowMiddleware
+
+broker.add_middleware(WorkflowMiddleware())
+```
+
 ## Example
 
 Let's assume we want a workflow that looks like this:
