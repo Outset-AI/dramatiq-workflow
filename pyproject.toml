@@ -4,6 +4,7 @@ target-version = 'py310'
 exclude = [".git", "__pypackages__", "venv"]
 
 [tool.ruff.lint]
+extend-select = ["I"]
 fixable = ["ALL"]
 
 [tool.pytest.ini_options]
