@@ -39,10 +39,10 @@ pip install dramatiq-workflow
 Then, add the `dramatiq-workflow` middleware to your dramatiq broker:
 
 ```python
-from dramatiq.rate_limits.backends import RedisBackend
+from dramatiq.rate_limits.backends import RedisBackend  # or MemcachedBackend
 from dramatiq_workflow import WorkflowMiddleware
 
-backend = RedisBackend()
+backend = RedisBackend()  # or MemcachedBackend()
 broker.add_middleware(WorkflowMiddleware(backend))
 ```
 
@@ -152,6 +152,36 @@ workflow = Workflow(
 
 In this example, Task 2 will run roughly 1 second after Task 1 finishes, and
 Task 3 and will run 2 seconds after Task 2 finishes.
+
+### Barrier
+
+`dramatiq-workflow` uses a barrier mechanism to keep track of the current state
+of a workflow. For example, every time a task in a `Group` is completed, the
+barrier is decreased by one. When the barrier reaches zero, the next task in
+the outer `Chain` is scheduled to run.
+
+By default, `dramatiq-workflow` uses a custom `AtMostOnceBarrier` that ensures
+the barrier is never released more than once. When the barrier reaches zero, an
+additional key is set in the backend to prevent releasing the barrier again. In
+almost all cases, this is the desired behavior since releasing a barrier more
+than once could lead to duplicate tasks being scheduled - which would have
+severe compounding effects in a workflow with many `Group` tasks.
+
+However, there is a small chance that the barrier is never released. This can
+happen when the configured `rate_limiter_backend` loses its state or when the
+worker unexpectedly crashes before scheduling the next task in the workflow.
+
+To configure a different barrier implementation such as dramatiq's default
+`Barrier`, you can pass it to the `WorkflowMiddleware`:
+
+```python
+from dramatiq.rate_limits import Barrier
+from dramatiq.rate_limits.backends import RedisBackend
+from dramatiq_workflow import WorkflowMiddleware
+
+backend = RedisBackend()
+broker.add_middleware(WorkflowMiddleware(backend, barrier=Barrier))
+```
 
 ## License
 
