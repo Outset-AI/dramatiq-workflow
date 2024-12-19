@@ -180,10 +180,6 @@ class Workflow:
         return self.__middleware.barrier
 
     def __create_barrier(self, count: int):
-        if count == 1:
-            # No need to create a distributed barrier if there is only one task
-            return None
-
         completion_uuid = str(uuid4())
         completion_barrier = self.__barrier(self.__rate_limiter_backend, completion_uuid, ttl=CALLBACK_BARRIER_TTL)
         completion_barrier.create(count)

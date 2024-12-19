@@ -80,7 +80,7 @@ class WorkflowTests(unittest.TestCase):
                 message_options={
                     "workflow_completion_callbacks": [
                         (
-                            None,
+                            mock.ANY,  # Accept any callback ID
                             {
                                 "__type__": "chain",
                                 "children": [
@@ -217,7 +217,7 @@ class WorkflowTests(unittest.TestCase):
                 message_options={
                     "workflow_completion_callbacks": [
                         (
-                            None,
+                            mock.ANY,  # Accept any callback ID
                             {
                                 "__type__": "chain",
                                 "children": [
