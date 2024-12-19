@@ -2,6 +2,7 @@ import unittest
 from unittest import mock
 
 import dramatiq
+import dramatiq.rate_limits
 
 from .. import Chain, Group, WithDelay, Workflow, WorkflowMiddleware
 from .._serialize import serialize_workflow, unserialize_workflow
@@ -9,7 +10,16 @@ from .._serialize import serialize_workflow, unserialize_workflow
 
 class WorkflowTests(unittest.TestCase):
     def setUp(self):
-        self.broker = mock.MagicMock(middleware=[WorkflowMiddleware(mock.MagicMock())])
+        self.rate_limiter_backend = mock.create_autospec(dramatiq.rate_limits.RateLimiterBackend, instance=True)
+        self.barrier = mock.create_autospec(dramatiq.rate_limits.Barrier)
+        self.broker = mock.MagicMock(
+            middleware=[
+                WorkflowMiddleware(
+                    rate_limiter_backend=self.rate_limiter_backend,
+                    barrier=self.barrier,
+                )
+            ]
+        )
         self.task = mock.MagicMock()
         self.task.message.side_effect = lambda *args, **kwargs: self.__make_message(
             self.__generate_id(), *args, **kwargs
@@ -230,10 +240,10 @@ class WorkflowTests(unittest.TestCase):
             ),
             delay=10,
         )
+        self.barrier.assert_called_once_with(self.rate_limiter_backend, mock.ANY, ttl=mock.ANY)
 
     @mock.patch("dramatiq_workflow._base.time.time")
-    @mock.patch("dramatiq_workflow._base.Barrier")
-    def test_group_with_delay(self, barrier_mock, time_mock):
+    def test_group_with_delay(self, time_mock):
         time_mock.return_value = 1717526000.12
         updated_timestamp = time_mock.return_value * 1000
         workflow = Workflow(
@@ -301,8 +311,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(workflow.workflow, unserialized)
 
     @mock.patch("dramatiq_workflow._base.time.time")
-    @mock.patch("dramatiq_workflow._base.Barrier")
-    def test_additive_delays(self, barrier_mock, time_mock):
+    def test_additive_delays(self, time_mock):
         time_mock.return_value = 1717526000.12
         updated_timestamp = time_mock.return_value * 1000
         workflow = Workflow(

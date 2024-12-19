@@ -1,5 +1,6 @@
 import logging
 import time
+import typing
 from uuid import uuid4
 
 import dramatiq
@@ -8,7 +9,7 @@ import dramatiq.rate_limits
 from ._constants import CALLBACK_BARRIER_TTL, OPTION_KEY_CALLBACKS
 from ._helpers import workflow_with_completion_callbacks
 from ._middleware import WorkflowMiddleware, workflow_noop
-from ._models import Barrier, Chain, CompletionCallbacks, Group, Message, WithDelay, WorkflowType
+from ._models import Chain, CompletionCallbacks, Group, Message, WithDelay, WorkflowType
 from ._serialize import serialize_callbacks, serialize_workflow
 
 logger = logging.getLogger(__name__)
@@ -156,11 +157,11 @@ class Workflow:
         )
 
     @property
-    def __rate_limiter_backend(self):
-        if not hasattr(self, "__cached_rate_limiter_backend"):
+    def __middleware(self) -> WorkflowMiddleware:
+        if not hasattr(self, "__cached_middleware"):
             for middleware in self.broker.middleware:
                 if isinstance(middleware, WorkflowMiddleware):
-                    self.__cached_rate_limiter_backend = middleware.rate_limiter_backend
+                    self.__cached_middleware = middleware
                     break
             else:
                 raise RuntimeError(
@@ -168,7 +169,15 @@ class Workflow:
                     "to set it up? It is required if you want to use "
                     "workflows."
                 )
-        return self.__cached_rate_limiter_backend
+        return self.__cached_middleware
+
+    @property
+    def __rate_limiter_backend(self) -> dramatiq.rate_limits.RateLimiterBackend:
+        return self.__middleware.rate_limiter_backend
+
+    @property
+    def __barrier(self) -> typing.Type[dramatiq.rate_limits.Barrier]:
+        return self.__middleware.barrier
 
     def __create_barrier(self, count: int):
         if count == 1:
@@ -176,7 +185,7 @@ class Workflow:
             return None
 
         completion_uuid = str(uuid4())
-        completion_barrier = Barrier(self.__rate_limiter_backend, completion_uuid, ttl=CALLBACK_BARRIER_TTL)
+        completion_barrier = self.__barrier(self.__rate_limiter_backend, completion_uuid, ttl=CALLBACK_BARRIER_TTL)
         completion_barrier.create(count)
         logger.debug("Barrier created: %s (%d tasks)", completion_uuid, count)
         return completion_uuid
