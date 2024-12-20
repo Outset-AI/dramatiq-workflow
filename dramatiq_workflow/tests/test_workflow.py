@@ -386,7 +386,6 @@ class WorkflowTests(unittest.TestCase):
             self.__make_message(
                 1,
                 message_timestamp=updated_timestamp,
-                message_options={"workflow_completion_callbacks": []},
             ),
             delay=20,
         )

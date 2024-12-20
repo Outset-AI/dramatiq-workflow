@@ -6,7 +6,8 @@ import dramatiq.rate_limits
 from ._barrier import AtMostOnceBarrier
 from ._constants import OPTION_KEY_CALLBACKS
 from ._helpers import workflow_with_completion_callbacks
-from ._serialize import unserialize_callbacks, unserialize_workflow
+from ._models import SerializedCompletionCallbacks
+from ._serialize import unserialize_workflow
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ class WorkflowMiddleware(dramatiq.Middleware):
         if message.failed:
             return
 
-        completion_callbacks: list[dict] | None = message.options.get(OPTION_KEY_CALLBACKS)
+        completion_callbacks: SerializedCompletionCallbacks | None = message.options.get(OPTION_KEY_CALLBACKS)
         if completion_callbacks is None:
             return
 
@@ -53,9 +54,7 @@ class WorkflowMiddleware(dramatiq.Middleware):
             workflow_with_completion_callbacks(
                 unserialize_workflow(remaining_workflow),
                 broker,
-                # TODO: This is somewhat inefficient because we're unserializing all callbacks
-                # even though we are just going to serialize them again.
-                unserialize_callbacks(completion_callbacks),
+                completion_callbacks,
             ).run()
 
             if not propagate:
