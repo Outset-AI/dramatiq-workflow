@@ -3,7 +3,6 @@ import logging
 import dramatiq
 import dramatiq.rate_limits
 
-from ._callbacks import CompletionCallbacks
 from ._constants import OPTION_KEY_CALLBACKS
 from ._helpers import workflow_with_completion_callbacks
 from ._models import Barrier, SerializedCompletionCallbacks
@@ -49,7 +48,7 @@ class WorkflowMiddleware(dramatiq.Middleware):
             workflow_with_completion_callbacks(
                 unserialize_workflow(remaining_workflow),
                 broker,
-                CompletionCallbacks(serialized=completion_callbacks),
+                completion_callbacks,
             ).run()
 
             if not propagate:

@@ -44,5 +44,3 @@ WorkflowType = Message | Chain | Group | WithDelay
 
 SerializedCompletionCallback = tuple[str | None, dict | None, bool]
 SerializedCompletionCallbacks = list[SerializedCompletionCallback]
-UnserializedCompletionCallback = tuple[str | None, WorkflowType | None, bool]
-UnserializedCompletionCallbacks = list[UnserializedCompletionCallback]

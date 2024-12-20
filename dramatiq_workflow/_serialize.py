@@ -4,8 +4,6 @@ from ._models import (
     Chain,
     Group,
     Message,
-    SerializedCompletionCallbacks,
-    UnserializedCompletionCallbacks,
     WithDelay,
     WorkflowType,
 )
@@ -77,11 +75,3 @@ def unserialize_workflow_or_none(workflow: typing.Any) -> WorkflowType | None:
     if workflow is None:
         return None
     return unserialize_workflow(workflow)
-
-
-def serialize_callbacks(callbacks: UnserializedCompletionCallbacks) -> SerializedCompletionCallbacks:
-    return [(id, serialize_workflow(g), propagate) for id, g, propagate in callbacks]
-
-
-def unserialize_callbacks(callbacks: SerializedCompletionCallbacks) -> UnserializedCompletionCallbacks:
-    return [(id, unserialize_workflow_or_none(g), propagate) for id, g, propagate in callbacks]

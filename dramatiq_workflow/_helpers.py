@@ -1,13 +1,12 @@
 import dramatiq
 
-from ._callbacks import CompletionCallbacks
-from ._models import WorkflowType
+from ._models import SerializedCompletionCallbacks, WorkflowType
 
 
 def workflow_with_completion_callbacks(
     workflow: WorkflowType,
     broker: dramatiq.Broker,
-    completion_callbacks: CompletionCallbacks,
+    completion_callbacks: SerializedCompletionCallbacks,
     delay: int | None = None,
 ):
     from ._base import Workflow
