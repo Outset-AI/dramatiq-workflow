@@ -1,6 +1,7 @@
 import dramatiq
 
-from ._models import CompletionCallbacks, WorkflowType
+from ._callbacks import CompletionCallbacks
+from ._models import WorkflowType
 
 
 def workflow_with_completion_callbacks(

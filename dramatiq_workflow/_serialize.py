@@ -1,9 +1,17 @@
 import typing
 
-from ._models import Chain, CompletionCallbacks, Group, Message, WithDelay, WorkflowType
+from ._models import (
+    Chain,
+    Group,
+    Message,
+    SerializedCompletionCallbacks,
+    UnserializedCompletionCallbacks,
+    WithDelay,
+    WorkflowType,
+)
 
 
-def serialize_workflow(workflow: WorkflowType | None) -> typing.Any:
+def serialize_workflow(workflow: WorkflowType | None) -> dict | None:
     """
     Return a serialized version of the workflow that can be JSON-encoded.
     """
@@ -71,9 +79,9 @@ def unserialize_workflow_or_none(workflow: typing.Any) -> WorkflowType | None:
     return unserialize_workflow(workflow)
 
 
-def serialize_callbacks(callbacks: CompletionCallbacks) -> list[tuple[str, typing.Any, bool]]:
+def serialize_callbacks(callbacks: UnserializedCompletionCallbacks) -> SerializedCompletionCallbacks:
     return [(id, serialize_workflow(g), propagate) for id, g, propagate in callbacks]
 
 
-def unserialize_callbacks(callbacks: list[dict]) -> CompletionCallbacks:
+def unserialize_callbacks(callbacks: SerializedCompletionCallbacks) -> UnserializedCompletionCallbacks:
     return [(id, unserialize_workflow_or_none(g), propagate) for id, g, propagate in callbacks]

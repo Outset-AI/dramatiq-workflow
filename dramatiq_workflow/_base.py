@@ -5,11 +5,12 @@ from uuid import uuid4
 import dramatiq
 import dramatiq.rate_limits
 
+from ._callbacks import CompletionCallbacks
 from ._constants import CALLBACK_BARRIER_TTL, OPTION_KEY_CALLBACKS
 from ._helpers import workflow_with_completion_callbacks
 from ._middleware import WorkflowMiddleware, workflow_noop
-from ._models import Barrier, Chain, CompletionCallbacks, Group, Message, WithDelay, WorkflowType
-from ._serialize import serialize_callbacks, serialize_workflow
+from ._models import Barrier, Chain, Group, Message, WithDelay, WorkflowType
+from ._serialize import serialize_workflow
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ class Workflow:
         self.broker = broker or dramatiq.get_broker()
 
         self._delay = None
-        self._completion_callbacks = []
+        self._completion_callbacks: CompletionCallbacks | None = None
 
         while isinstance(self.workflow, WithDelay):
             self._delay = (self._delay or 0) + self.workflow.delay
@@ -99,7 +100,11 @@ class Workflow:
 
     def run(self):
         current = self.workflow
-        completion_callbacks = self._completion_callbacks.copy()
+        completion_callbacks = (
+            self._completion_callbacks.copy()
+            if self._completion_callbacks
+            else CompletionCallbacks(unserialized=[], serialized=[])
+        )
 
         if isinstance(current, Message):
             current = self.__augment_message(current, completion_callbacks)
@@ -152,7 +157,7 @@ class Workflow:
             # message was actually enqueued.  This is to avoid tripping the max_age
             # check in the broker.
             message_timestamp=time.time() * 1000,
-            options={OPTION_KEY_CALLBACKS: serialize_callbacks(completion_callbacks)},
+            options={OPTION_KEY_CALLBACKS: completion_callbacks.serialize()},
         )
 
     @property
@@ -170,7 +175,7 @@ class Workflow:
                 )
         return self.__cached_rate_limiter_backend
 
-    def __create_barrier(self, count: int):
+    def __create_barrier(self, count: int) -> str | None:
         if count == 1:
             # No need to create a distributed barrier if there is only one task
             return None
