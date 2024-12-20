@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="dramatiq-workflow",
-    version="0.1.1",
+    version="0.2.0",
     description="A library for running workflows (chains and groups of tasks) using the Python background task processing library dramatiq.",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
