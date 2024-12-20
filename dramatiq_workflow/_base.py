@@ -150,12 +150,16 @@ class Workflow:
         self.broker.enqueue(noop_message, delay=self._delay)
 
     def __augment_message(self, message: Message, completion_callbacks: SerializedCompletionCallbacks) -> Message:
+        options = {}
+        if completion_callbacks:
+            options = {OPTION_KEY_CALLBACKS: completion_callbacks}
+
         return message.copy(
             # We reset the message timestamp to better represent the time the
             # message was actually enqueued.  This is to avoid tripping the max_age
             # check in the broker.
             message_timestamp=time.time() * 1000,
-            options={OPTION_KEY_CALLBACKS: completion_callbacks},
+            options=options,
         )
 
     @property
