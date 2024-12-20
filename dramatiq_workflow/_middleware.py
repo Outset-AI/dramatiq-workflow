@@ -1,5 +1,4 @@
 import logging
-import typing
 
 import dramatiq
 import dramatiq.rate_limits
@@ -16,7 +15,7 @@ class WorkflowMiddleware(dramatiq.Middleware):
     def __init__(
         self,
         rate_limiter_backend: dramatiq.rate_limits.RateLimiterBackend,
-        barrier: typing.Type[dramatiq.rate_limits.Barrier] = AtMostOnceBarrier,
+        barrier: type[dramatiq.rate_limits.Barrier] = AtMostOnceBarrier,
     ):
         self.rate_limiter_backend = rate_limiter_backend
         self.barrier = barrier

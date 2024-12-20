@@ -1,6 +1,5 @@
 import logging
 import time
-import typing
 from uuid import uuid4
 
 import dramatiq
@@ -176,7 +175,7 @@ class Workflow:
         return self.__middleware.rate_limiter_backend
 
     @property
-    def __barrier(self) -> typing.Type[dramatiq.rate_limits.Barrier]:
+    def __barrier(self) -> type[dramatiq.rate_limits.Barrier]:
         return self.__middleware.barrier
 
     def __create_barrier(self, count: int):
