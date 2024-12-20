@@ -16,7 +16,7 @@ class WorkflowTests(unittest.TestCase):
             middleware=[
                 WorkflowMiddleware(
                     rate_limiter_backend=self.rate_limiter_backend,
-                    barrier=self.barrier,
+                    barrier_type=self.barrier,
                 )
             ]
         )

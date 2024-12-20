@@ -224,7 +224,7 @@ from dramatiq.rate_limits.backends import RedisBackend
 from dramatiq_workflow import WorkflowMiddleware
 
 backend = RedisBackend()
-broker.add_middleware(WorkflowMiddleware(backend, barrier=Barrier))
+broker.add_middleware(WorkflowMiddleware(backend, barrier_type=Barrier))
 ```
 
 ## License

@@ -16,10 +16,10 @@ class WorkflowMiddleware(dramatiq.Middleware):
     def __init__(
         self,
         rate_limiter_backend: dramatiq.rate_limits.RateLimiterBackend,
-        barrier: type[dramatiq.rate_limits.Barrier] = AtMostOnceBarrier,
+        barrier_type: type[dramatiq.rate_limits.Barrier] = AtMostOnceBarrier,
     ):
         self.rate_limiter_backend = rate_limiter_backend
-        self.barrier = barrier
+        self.barrier_type = barrier_type
 
     def after_process_boot(self, broker: dramatiq.Broker):
         broker.declare_actor(workflow_noop)
@@ -42,7 +42,7 @@ class WorkflowMiddleware(dramatiq.Middleware):
         while len(completion_callbacks) > 0:
             completion_id, remaining_workflow, propagate = completion_callbacks[-1]
             if completion_id is not None:
-                barrier = self.barrier(self.rate_limiter_backend, completion_id)
+                barrier = self.barrier_type(self.rate_limiter_backend, completion_id)
                 if not barrier.wait(block=False):
                     logger.debug("Barrier not completed: %s", completion_id)
                     break

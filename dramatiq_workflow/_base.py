@@ -182,12 +182,12 @@ class Workflow:
         return self.__middleware.rate_limiter_backend
 
     @property
-    def __barrier(self) -> type[dramatiq.rate_limits.Barrier]:
-        return self.__middleware.barrier
+    def __barrier_type(self) -> type[dramatiq.rate_limits.Barrier]:
+        return self.__middleware.barrier_type
 
     def __create_barrier(self, count: int) -> str:
         completion_uuid = str(uuid4())
-        completion_barrier = self.__barrier(self.__rate_limiter_backend, completion_uuid, ttl=CALLBACK_BARRIER_TTL)
+        completion_barrier = self.__barrier_type(self.__rate_limiter_backend, completion_uuid, ttl=CALLBACK_BARRIER_TTL)
         completion_barrier.create(count)
         logger.debug("Barrier created: %s (%d tasks)", completion_uuid, count)
         return completion_uuid
