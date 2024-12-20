@@ -1,8 +1,6 @@
 import dramatiq
 import dramatiq.rate_limits
 
-from ._barrier import AtMostOnceBarrier
-
 
 class Chain:
     def __init__(self, *tasks: "WorkflowType"):
@@ -38,7 +36,6 @@ class WithDelay:
         return isinstance(other, WithDelay) and self.task == other.task and self.delay == other.delay
 
 
-Barrier = AtMostOnceBarrier
 Message = dramatiq.Message
 WorkflowType = Message | Chain | Group | WithDelay
 

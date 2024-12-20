@@ -3,17 +3,23 @@ import logging
 import dramatiq
 import dramatiq.rate_limits
 
+from ._barrier import AtMostOnceBarrier
 from ._constants import OPTION_KEY_CALLBACKS
 from ._helpers import workflow_with_completion_callbacks
-from ._models import Barrier, SerializedCompletionCallbacks
+from ._models import SerializedCompletionCallbacks
 from ._serialize import unserialize_workflow
 
 logger = logging.getLogger(__name__)
 
 
 class WorkflowMiddleware(dramatiq.Middleware):
-    def __init__(self, rate_limiter_backend: dramatiq.rate_limits.RateLimiterBackend):
+    def __init__(
+        self,
+        rate_limiter_backend: dramatiq.rate_limits.RateLimiterBackend,
+        barrier_type: type[dramatiq.rate_limits.Barrier] = AtMostOnceBarrier,
+    ):
         self.rate_limiter_backend = rate_limiter_backend
+        self.barrier_type = barrier_type
 
     def after_process_boot(self, broker: dramatiq.Broker):
         broker.declare_actor(workflow_noop)
@@ -36,7 +42,7 @@ class WorkflowMiddleware(dramatiq.Middleware):
         while len(completion_callbacks) > 0:
             completion_id, remaining_workflow, propagate = completion_callbacks[-1]
             if completion_id is not None:
-                barrier = Barrier(self.rate_limiter_backend, completion_id)
+                barrier = self.barrier_type(self.rate_limiter_backend, completion_id)
                 if not barrier.wait(block=False):
                     logger.debug("Barrier not completed: %s", completion_id)
                     break
