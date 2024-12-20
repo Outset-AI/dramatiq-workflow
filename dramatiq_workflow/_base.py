@@ -8,8 +8,8 @@ import dramatiq.rate_limits
 from ._constants import CALLBACK_BARRIER_TTL, OPTION_KEY_CALLBACKS
 from ._helpers import workflow_with_completion_callbacks
 from ._middleware import WorkflowMiddleware, workflow_noop
-from ._models import Barrier, Chain, CompletionCallbacks, Group, Message, WithDelay, WorkflowType
-from ._serialize import serialize_callbacks, serialize_workflow
+from ._models import Barrier, Chain, Group, Message, SerializedCompletionCallbacks, WithDelay, WorkflowType
+from ._serialize import serialize_workflow
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ class Workflow:
         self.broker = broker or dramatiq.get_broker()
 
         self._delay = None
-        self._completion_callbacks = []
+        self._completion_callbacks: SerializedCompletionCallbacks | None = None
 
         while isinstance(self.workflow, WithDelay):
             self._delay = (self._delay or 0) + self.workflow.delay
@@ -99,7 +99,7 @@ class Workflow:
 
     def run(self):
         current = self.workflow
-        completion_callbacks = self._completion_callbacks.copy()
+        completion_callbacks = self._completion_callbacks or []
 
         if isinstance(current, Message):
             current = self.__augment_message(current, completion_callbacks)
@@ -115,7 +115,10 @@ class Workflow:
             task = tasks.pop(0)
             if tasks:
                 completion_id = self.__create_barrier(1)
-                completion_callbacks.append((completion_id, Chain(*tasks), False))
+                completion_callbacks = [
+                    *completion_callbacks,
+                    (completion_id, serialize_workflow(Chain(*tasks)), False),
+                ]
             self.__workflow_with_completion_callbacks(task, completion_callbacks).run()
             return
 
@@ -126,7 +129,7 @@ class Workflow:
                 return
 
             completion_id = self.__create_barrier(len(tasks))
-            completion_callbacks.append((completion_id, None, True))
+            completion_callbacks = [*completion_callbacks, (completion_id, None, True)]
             for task in tasks:
                 self.__workflow_with_completion_callbacks(task, completion_callbacks).run()
             return
@@ -141,18 +144,22 @@ class Workflow:
             delay=self._delay,
         )
 
-    def __schedule_noop(self, completion_callbacks: CompletionCallbacks):
+    def __schedule_noop(self, completion_callbacks: SerializedCompletionCallbacks):
         noop_message = workflow_noop.message()
         noop_message = self.__augment_message(noop_message, completion_callbacks)
         self.broker.enqueue(noop_message, delay=self._delay)
 
-    def __augment_message(self, message: Message, completion_callbacks: CompletionCallbacks) -> Message:
+    def __augment_message(self, message: Message, completion_callbacks: SerializedCompletionCallbacks) -> Message:
+        options = {}
+        if completion_callbacks:
+            options = {OPTION_KEY_CALLBACKS: completion_callbacks}
+
         return message.copy(
             # We reset the message timestamp to better represent the time the
             # message was actually enqueued.  This is to avoid tripping the max_age
             # check in the broker.
             message_timestamp=time.time() * 1000,
-            options={OPTION_KEY_CALLBACKS: serialize_callbacks(completion_callbacks)},
+            options=options,
         )
 
     @property
@@ -170,7 +177,7 @@ class Workflow:
                 )
         return self.__cached_rate_limiter_backend
 
-    def __create_barrier(self, count: int):
+    def __create_barrier(self, count: int) -> str | None:
         if count == 1:
             # No need to create a distributed barrier if there is only one task
             return None

@@ -42,6 +42,5 @@ Barrier = AtMostOnceBarrier
 Message = dramatiq.Message
 WorkflowType = Message | Chain | Group | WithDelay
 
-# CompletionCallback is a tuple containing: ID, WorkflowType, propagate
-CompletionCallback = tuple[str, WorkflowType | None, bool]
-CompletionCallbacks = list[CompletionCallback]
+SerializedCompletionCallback = tuple[str | None, dict | None, bool]
+SerializedCompletionCallbacks = list[SerializedCompletionCallback]
