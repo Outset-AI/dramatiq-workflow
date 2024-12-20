@@ -20,7 +20,7 @@ class AtMostOnceBarrier(dramatiq.rate_limits.Barrier):
         self.ran_key = f"{key}_ran"
 
     def create(self, parties):
-        self.backend.add(self.ran_key, 0, self.ttl)
+        self.backend.add(self.ran_key, -1, self.ttl)
         return super().create(parties)
 
     def wait(self, *args, block=True, timeout=None):
@@ -32,7 +32,7 @@ class AtMostOnceBarrier(dramatiq.rate_limits.Barrier):
 
         released = super().wait(*args, block=False)
         if released:
-            never_released = self.backend.incr(self.ran_key, 1, 1, self.ttl)
+            never_released = self.backend.incr(self.ran_key, 1, 0, self.ttl)
             return never_released
 
         return False
