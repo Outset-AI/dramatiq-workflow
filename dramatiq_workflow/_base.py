@@ -145,6 +145,21 @@ class Workflow:
         )
 
     def __schedule_noop(self, completion_callbacks: SerializedCompletionCallbacks):
+        """
+        Schedules a no-op task to trigger the workflow middleware.
+
+        This is necessary when a Chain or a Group is empty, to ensure that
+        the completion callbacks are still processed and the workflow can
+        continue.
+        """
+
+        if not self._delay:
+            # If there is no delay, we can process the completion callbacks
+            # immediately instead of scheduling a noop task. This saves us a
+            # round trip to the broker and having to encode the workflow.
+            self.__middleware._process_completion_callbacks(self.broker, completion_callbacks)
+            return
+
         noop_message = workflow_noop.message()
         noop_message = self.__augment_message(noop_message, completion_callbacks)
         self.broker.enqueue(noop_message, delay=self._delay)

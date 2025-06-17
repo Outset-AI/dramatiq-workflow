@@ -185,13 +185,58 @@ class WorkflowTests(unittest.TestCase):
             delay=None,
         )
 
-    @mock.patch("dramatiq_workflow._base.time.time")
-    def test_noop_workflow(self, time_mock):
-        time_mock.return_value = 1717526000.12
+    def test_empty_chain_workflow(self):
+        middleware = self.broker.middleware[0]
+        middleware._process_completion_callbacks = mock.MagicMock()
+
         workflow = Workflow(Chain(), broker=self.broker)
         workflow.run()
 
+        self.broker.enqueue.assert_not_called()
+        middleware._process_completion_callbacks.assert_called_once_with(self.broker, [])
+
+    def test_empty_group_workflow(self):
+        middleware = self.broker.middleware[0]
+        middleware._process_completion_callbacks = mock.MagicMock()
+
+        workflow = Workflow(Group(), broker=self.broker)
+        workflow.run()
+
+        self.broker.enqueue.assert_not_called()
+        middleware._process_completion_callbacks.assert_called_once_with(self.broker, [])
+
+    @mock.patch("dramatiq_workflow._base.workflow_noop.message")
+    @mock.patch("dramatiq_workflow._base.time.time")
+    def test_empty_chain_workflow_with_delay(self, time_mock, noop_message_mock):
+        time_mock.return_value = 1717526000.12
+        updated_timestamp = time_mock.return_value * 1000
+
+        original_noop_message = self.__make_message(999)
+        noop_message_mock.return_value = original_noop_message
+
+        middleware = self.broker.middleware[0]
+        middleware._process_completion_callbacks = mock.MagicMock()
+
+        workflow = Workflow(WithDelay(Chain(), delay=10), broker=self.broker)
+        workflow.run()
+
+        middleware._process_completion_callbacks.assert_not_called()
+        noop_message_mock.assert_called_once_with()
+
         self.broker.enqueue.assert_called_once()
+        args, kwargs = self.broker.enqueue.call_args
+        enqueued_message = args[0]
+
+        self.assertEqual(kwargs, {"delay": 10})
+        self.assertEqual(enqueued_message.message_id, original_noop_message.message_id)
+        self.assertEqual(enqueued_message.message_timestamp, updated_timestamp)
+        self.assertEqual(enqueued_message.options, {})
+
+    def test_missing_middleware(self):
+        self.broker.middleware = []
+        workflow = Workflow(Chain(), broker=self.broker)
+        with self.assertRaisesRegex(RuntimeError, "WorkflowMiddleware middleware not found"):
+            workflow.run()
 
     def test_unsupported_workflow(self):
         with self.assertRaises(TypeError):

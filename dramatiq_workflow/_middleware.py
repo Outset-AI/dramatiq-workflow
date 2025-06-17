@@ -38,6 +38,11 @@ class WorkflowMiddleware(dramatiq.Middleware):
         if completion_callbacks is None:
             return
 
+        self._process_completion_callbacks(broker, completion_callbacks)
+
+    def _process_completion_callbacks(
+        self, broker: dramatiq.Broker, completion_callbacks: SerializedCompletionCallbacks
+    ):
         # Go through the completion callbacks backwards until we hit the first non-completed barrier
         while len(completion_callbacks) > 0:
             completion_id, remaining_workflow, propagate = completion_callbacks[-1]
