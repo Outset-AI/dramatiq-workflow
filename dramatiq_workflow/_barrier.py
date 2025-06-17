@@ -1,4 +1,8 @@
+import logging
+
 import dramatiq.rate_limits
+
+logger = logging.getLogger(__name__)
 
 
 class AtMostOnceBarrier(dramatiq.rate_limits.Barrier):
@@ -33,6 +37,8 @@ class AtMostOnceBarrier(dramatiq.rate_limits.Barrier):
         released = super().wait(*args, block=False)
         if released:
             never_released = self.backend.incr(self.ran_key, 1, 0, self.ttl)
+            if not never_released:
+                logger.warning("Barrier %s release already recorded; ignoring subsequent release attempt", self.key)
             return never_released
 
         return False
