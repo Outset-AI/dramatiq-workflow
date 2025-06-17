@@ -157,7 +157,8 @@ Task 3 and will run 2 seconds after Task 2 finishes.
 
 Because of how `dramatiq-workflow` is implemented, each task in a workflow has
 to know about the remaining tasks in the workflow that could potentially run
-after it. When a workflow has a large number of tasks, this can lead to an
+after it. By default, this is stored alongside your messages in the message
+queue. When a workflow has a large number of tasks, it can lead to an
 increase of memory usage in the broker and increased network traffic between
 the broker and the workers, especially when using `Group` tasks: Each task in a
 `Group` can potentially be the last one to finish, so each task has to retain a
@@ -173,9 +174,11 @@ There are a few things you can do to alleviate this issue:
 - Consider breaking down large workflows into smaller partial workflows that
   then schedule a subsequent workflow at the very end of the outermost `Chain`.
 
-Lastly, you can use compression to reduce the size of the messages in your
-queue. While dramatiq does not provide a compression implementation by default,
-one can be added with just a few lines of code. For example:
+#### Compression
+
+You can use compression to reduce the size of the messages in your queue. While
+dramatiq does not provide a compression implementation by default, one can be
+added with just a few lines of code. For example:
 
 ```python
 import dramatiq
@@ -195,6 +198,68 @@ class DramatiqLz4JSONEncoder(JSONEncoder):
         return super().decode(decompressed)
 
 dramatiq.set_encoder(DramatiqLz4JSONEncoder())
+```
+
+#### Callback Storage
+
+To completely eliminate the issue of large workflows being stored in your
+message queue, you can provide a custom callback storage backend to the
+`WorkflowMiddleware`. A callback storage backend is responsible for storing and
+retrieving the list of callbacks. For example, you could implement a storage
+backend that stores the callbacks in S3 and only stores a reference to the S3
+object in the message options.
+
+A storage backend must implement the `CallbackStorage` interface:
+
+```python
+from typing import Any
+from dramatiq_workflow import CallbackStorage, SerializedCompletionCallbacks
+
+class MyS3Storage(CallbackStorage):
+    def store(self, callbacks: SerializedCompletionCallbacks) -> Any:
+        # ... store in S3 and return a key
+        pass
+
+    def retrieve(self, ref: Any) -> SerializedCompletionCallbacks:
+        # ... retrieve from S3 using the key
+        pass
+```
+
+Then, you can pass an instance of your custom storage backend to the
+`WorkflowMiddleware`:
+
+```python
+from dramatiq.rate_limits.backends import RedisBackend
+from dramatiq_workflow import WorkflowMiddleware
+
+backend = RedisBackend()
+storage = MyS3Storage()  # Your custom storage backend
+broker.add_middleware(WorkflowMiddleware(backend, callback_storage=storage))
+```
+
+#### Deduplicating Callbacks
+
+For convenience, `CallbackStorage` provides a helper method `_determine_dedup_key`
+that you can use to deduplicate callbacks for `Group` tasks. If the
+deduplication key already exists, storing can be skipped.
+
+```python
+from typing import Any
+from dramatiq_workflow import CallbackStorage, SerializedCompletionCallbacks
+
+class MyDedupStorage(CallbackStorage):
+    def __init__(self):
+        self.__storage = MagicStorage()
+
+    def store(self, callbacks: SerializedCompletionCallbacks) -> str:
+        dedup_key, _ = self._determine_dedup_key(callbacks)
+        if not self.__storage.exists(dedup_key):
+           self.__storage.set(dedup_key, callbacks)
+        return dedup_key
+
+    def retrieve(self, ref: Any) -> SerializedCompletionCallbacks:
+        # ref will be the deduplication key from before
+        return self.__storage.get(ref)
 ```
 
 ### Barrier

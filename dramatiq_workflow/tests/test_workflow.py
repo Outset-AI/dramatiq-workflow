@@ -1,11 +1,31 @@
 import unittest
+from typing import Any
 from unittest import mock
 
 import dramatiq
 import dramatiq.rate_limits
 
 from .. import Chain, Group, WithDelay, Workflow, WorkflowMiddleware
+from .._constants import OPTION_KEY_CALLBACKS
+from .._models import SerializedCompletionCallbacks
 from .._serialize import serialize_workflow, unserialize_workflow
+from .._storage import CallbackStorage
+
+
+class MyDedupStorage(CallbackStorage):
+    def __init__(self):
+        self.storage = {}
+        self.store_calls = []
+
+    def store(self, callbacks: SerializedCompletionCallbacks) -> Any:
+        dedup_key, is_group = self._determine_dedup_key(callbacks)
+        self.store_calls.append((dedup_key, callbacks, is_group))
+        if dedup_key not in self.storage:
+            self.storage[dedup_key] = callbacks
+        return dedup_key
+
+    def retrieve(self, ref: Any) -> SerializedCompletionCallbacks:
+        return self.storage[ref]
 
 
 class WorkflowTests(unittest.TestCase):
@@ -389,3 +409,53 @@ class WorkflowTests(unittest.TestCase):
             ),
             delay=20,
         )
+
+    @mock.patch("dramatiq_workflow._base.time.time")
+    def test_workflow_with_custom_storage(self, time_mock):
+        time_mock.return_value = 1717526000.12
+
+        storage = MyDedupStorage()
+        # The broker is a mock object, we can just replace the middleware list
+        self.broker.middleware = [
+            WorkflowMiddleware(
+                rate_limiter_backend=self.rate_limiter_backend,
+                barrier_type=self.barrier,
+                callback_storage=storage,
+            )
+        ]
+
+        workflow = Workflow(Group(self.task.message(), self.task.message()), broker=self.broker)
+        workflow.run()
+
+        # Assertions
+        self.assertEqual(len(storage.store_calls), 2)
+
+        dedup_key1, callbacks1, is_group1 = storage.store_calls[0]
+        dedup_key2, callbacks2, is_group2 = storage.store_calls[1]
+        self.assertEqual(dedup_key1, dedup_key2)
+        self.assertEqual(callbacks1, callbacks2)
+        self.assertTrue(is_group1)
+        self.assertTrue(is_group2)
+
+        self.assertEqual(len(storage.storage), 1)
+        self.assertIn(dedup_key1, storage.storage)
+
+        self.broker.enqueue.assert_has_calls(
+            [
+                mock.call(mock.ANY, delay=None),
+                mock.call(mock.ANY, delay=None),
+            ],
+            any_order=True,
+        )
+
+        # Check the options passed to enqueue
+        self.assertEqual(len(self.broker.enqueue.call_args_list), 2)
+        message1 = self.broker.enqueue.call_args_list[0][0][0]
+        delay1 = self.broker.enqueue.call_args_list[0][1]["delay"]
+        message2 = self.broker.enqueue.call_args_list[1][0][0]
+        delay2 = self.broker.enqueue.call_args_list[1][1]["delay"]
+
+        self.assertEqual(message1.options[OPTION_KEY_CALLBACKS], dedup_key1)
+        self.assertEqual(delay1, None)
+        self.assertEqual(message2.options[OPTION_KEY_CALLBACKS], dedup_key2)
+        self.assertEqual(delay2, None)

@@ -39,5 +39,5 @@ class WithDelay:
 Message = dramatiq.Message
 WorkflowType = Message | Chain | Group | WithDelay
 
-SerializedCompletionCallback = tuple[str | None, dict | None, bool]
+SerializedCompletionCallback = tuple[str, dict | None, bool]
 SerializedCompletionCallbacks = list[SerializedCompletionCallback]

@@ -1,4 +1,5 @@
 import unittest
+from typing import Any
 from unittest import mock
 
 import dramatiq
@@ -8,7 +9,25 @@ from dramatiq.rate_limits.backends import StubBackend
 from dramatiq_workflow import Chain, WorkflowMiddleware
 from dramatiq_workflow._barrier import AtMostOnceBarrier
 from dramatiq_workflow._constants import OPTION_KEY_CALLBACKS
+from dramatiq_workflow._models import SerializedCompletionCallbacks
 from dramatiq_workflow._serialize import serialize_workflow
+from dramatiq_workflow._storage import CallbackStorage
+
+
+class MyDedupStorage(CallbackStorage):
+    def __init__(self):
+        self.storage = {}
+        self.retrieve_calls = []
+
+    def store(self, callbacks: SerializedCompletionCallbacks) -> Any:
+        dedup_key, _ = self._determine_dedup_key(callbacks)
+        if dedup_key not in self.storage:
+            self.storage[dedup_key] = callbacks
+        return dedup_key
+
+    def retrieve(self, ref: Any) -> SerializedCompletionCallbacks:
+        self.retrieve_calls.append(ref)
+        return self.storage[ref]
 
 
 class WorkflowMiddlewareTests(unittest.TestCase):
@@ -71,7 +90,10 @@ class WorkflowMiddlewareTests(unittest.TestCase):
     @mock.patch("dramatiq_workflow._base.time.time")
     def test_after_process_message_with_workflow(self, mock_time):
         mock_time.return_value = 1337
-        message = self._make_message({OPTION_KEY_CALLBACKS: [(None, self._create_serialized_workflow(), True)]})
+        barrier_key = "barrier_1"
+        barrier = AtMostOnceBarrier(self.rate_limiter_backend, barrier_key)
+        barrier.create(1)
+        message = self._make_message({OPTION_KEY_CALLBACKS: [(barrier_key, self._create_serialized_workflow(), True)]})
 
         self.middleware.after_process_message(self.broker, message)
 
@@ -89,4 +111,27 @@ class WorkflowMiddlewareTests(unittest.TestCase):
 
         # Calling again, barrier should be completed now
         self.middleware.after_process_message(self.broker, message)
+        self.broker.enqueue.assert_called_once_with(self._make_message(message_timestamp=1337_000)._message, delay=None)
+
+    @mock.patch("dramatiq_workflow._base.time.time")
+    def test_after_process_message_with_custom_storage(self, mock_time):
+        mock_time.return_value = 1337
+        storage = MyDedupStorage()
+        self.middleware = WorkflowMiddleware(self.rate_limiter_backend, callback_storage=storage)
+
+        serialized_workflow = self._create_serialized_workflow()
+        callbacks = [("barrier_1", serialized_workflow, True)]
+
+        barrier = AtMostOnceBarrier(self.rate_limiter_backend, "barrier_1")
+        barrier.create(1)
+
+        dedup_key = storage.store(callbacks)
+
+        message = self._make_message({OPTION_KEY_CALLBACKS: dedup_key})
+
+        self.middleware.after_process_message(self.broker, message)
+
+        self.assertEqual(len(storage.retrieve_calls), 1)
+        self.assertEqual(storage.retrieve_calls[0], dedup_key)
+
         self.broker.enqueue.assert_called_once_with(self._make_message(message_timestamp=1337_000)._message, delay=None)
