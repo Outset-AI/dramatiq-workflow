@@ -3,6 +3,7 @@ from ._middleware import WorkflowMiddleware
 from ._models import (
     Chain,
     Group,
+    LazyWorkflow,
     Message,
     SerializedCompletionCallback,
     SerializedCompletionCallbacks,
@@ -16,6 +17,7 @@ __all__ = [
     "Chain",
     "Group",
     "InlineCallbackStorage",
+    "LazyWorkflow",
     "Message",
     "SerializedCompletionCallback",
     "SerializedCompletionCallbacks",

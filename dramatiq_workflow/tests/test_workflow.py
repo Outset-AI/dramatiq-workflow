@@ -7,7 +7,7 @@ import dramatiq.rate_limits
 
 from .. import Chain, Group, WithDelay, Workflow, WorkflowMiddleware
 from .._constants import OPTION_KEY_CALLBACKS
-from .._models import SerializedCompletionCallbacks
+from .._models import LazyWorkflow, SerializedCompletionCallbacks
 from .._serialize import serialize_workflow, unserialize_workflow
 from .._storage import CallbackStorage
 
@@ -26,6 +26,16 @@ class MyDedupStorage(CallbackStorage):
 
     def retrieve(self, ref: Any) -> SerializedCompletionCallbacks:
         return self.storage[ref]
+
+
+class MyLazyWorkflow(LazyWorkflow):
+    def __init__(self, workflow: dict):
+        self._workflow = workflow
+        self.loaded = False
+
+    def load(self) -> dict:
+        self.loaded = True
+        return self._workflow
 
 
 class WorkflowTests(unittest.TestCase):
@@ -329,6 +339,18 @@ class WorkflowTests(unittest.TestCase):
         serialized = serialize_workflow(workflow.workflow)
         unserialized = unserialize_workflow(serialized)
         self.assertEqual(workflow.workflow, unserialized)
+
+    def test_unserialize_lazy_workflow(self):
+        workflow = Chain(self.task.message())
+        serialized = serialize_workflow(workflow)
+        self.assertIsNotNone(serialized)
+
+        lazy_workflow = MyLazyWorkflow(serialized)
+        self.assertFalse(lazy_workflow.loaded)
+
+        unserialized = unserialize_workflow(lazy_workflow)
+        self.assertTrue(lazy_workflow.loaded)
+        self.assertEqual(workflow, unserialized)
 
     @mock.patch("dramatiq_workflow._base.time.time")
     def test_additive_delays(self, time_mock):

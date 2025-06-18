@@ -1,5 +1,16 @@
+import abc
+
 import dramatiq
 import dramatiq.rate_limits
+
+
+class LazyWorkflow(abc.ABC):
+    """Abstract base class for lazily-loaded workflows."""
+
+    @abc.abstractmethod
+    def load(self) -> dict:
+        """Loads the workflow representation."""
+        raise NotImplementedError
 
 
 class Chain:
@@ -39,5 +50,5 @@ class WithDelay:
 Message = dramatiq.Message
 WorkflowType = Message | Chain | Group | WithDelay
 
-SerializedCompletionCallback = tuple[str, dict | None, bool]
+SerializedCompletionCallback = tuple[str, dict | LazyWorkflow | None, bool]
 SerializedCompletionCallbacks = list[SerializedCompletionCallback]
