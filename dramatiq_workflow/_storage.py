@@ -2,7 +2,7 @@ import abc
 from functools import partial
 from typing import Any
 
-from ._models import SerializedCompletionCallbacks
+from ._models import LazyWorkflow, SerializedCompletionCallbacks
 
 
 class CallbackStorage(abc.ABC):
@@ -75,6 +75,15 @@ class InlineCallbackStorage(CallbackStorage):
         return ref
 
 
+class _LazyLoadedWorkflow:
+    def __init__(self, ref: Any, load_func: LazyWorkflow):
+        self.ref = ref
+        self.load_func = load_func
+
+    def __call__(self) -> dict:
+        return self.load_func()
+
+
 class DedupWorkflowCallbackStorage(CallbackStorage, abc.ABC):
     """
     An abstract storage backend that separates storage of workflows from
@@ -120,7 +129,9 @@ class DedupWorkflowCallbackStorage(CallbackStorage, abc.ABC):
         """
         new_callbacks = []
         for completion_id, remaining_workflow, is_group in callbacks:
-            if isinstance(remaining_workflow, dict):
+            if isinstance(remaining_workflow, _LazyLoadedWorkflow):
+                remaining_workflow = remaining_workflow.ref
+            elif isinstance(remaining_workflow, dict):
                 remaining_workflow = self._store_workflow(completion_id, remaining_workflow)
             new_callbacks.append((completion_id, remaining_workflow, is_group))
 
@@ -134,7 +145,10 @@ class DedupWorkflowCallbackStorage(CallbackStorage, abc.ABC):
         new_callbacks = []
         for completion_id, workflow_ref, is_group in callbacks:
             if workflow_ref is not None and not callable(workflow_ref):
-                workflow_ref = partial(self._load_workflow, completion_id, workflow_ref)
+                workflow_ref = _LazyLoadedWorkflow(
+                    ref=workflow_ref,
+                    load_func=partial(self._load_workflow, completion_id, workflow_ref),
+                )
             new_callbacks.append((completion_id, workflow_ref, is_group))
 
         return new_callbacks

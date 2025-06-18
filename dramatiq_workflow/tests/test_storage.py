@@ -136,3 +136,32 @@ class DedupWorkflowCallbackStorageTests(unittest.TestCase):
 
         id1, loader1, is_group1 = retrieved_callbacks[0]
         self.assertIs(loader1, lazy_workflow)
+
+    def test_store_with_already_lazy_loaded_workflow(self):
+        # This test ensures that when we store a workflow that has already been
+        # loaded and wrapped by the storage, we don't try to store it again,
+        # but instead use its reference.
+
+        # 1. Store a workflow and retrieve it.
+        workflow_dict = {"__type__": "chain", "children": []}
+        callbacks1: SerializedCompletionCallbacks = [("id1", workflow_dict, False)]
+        callbacks_ref1 = self.storage.store(callbacks1)
+        retrieved_callbacks1 = self.storage.retrieve(callbacks_ref1)
+        _, lazy_loader, _ = retrieved_callbacks1[0]
+
+        # We should have one call to store the workflow
+        self.assertEqual(len(self.storage.workflow_store_calls), 1)
+        self.assertTrue(callable(lazy_loader))
+
+        # 2. Now, create new callbacks using the lazy loader from the previous step
+        #    and store them.
+        callbacks2: SerializedCompletionCallbacks = [("id2", lazy_loader, False)]
+        callbacks_ref2 = self.storage.store(callbacks2)
+
+        # 3. _store_workflow should NOT have been called again.
+        self.assertEqual(len(self.storage.workflow_store_calls), 1)
+
+        # 4. The new stored callbacks should contain the original workflow reference.
+        stored_callbacks2 = self.storage.callbacks[callbacks_ref2]
+        self.assertEqual(len(stored_callbacks2), 1)
+        self.assertEqual(stored_callbacks2[0], ("id2", "workflow-ref-id1", False))
