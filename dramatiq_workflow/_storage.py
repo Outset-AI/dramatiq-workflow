@@ -61,6 +61,9 @@ class _LazyLoadedWorkflow:
     def __call__(self) -> dict:
         return self.load_func()
 
+    def __str__(self):
+        return f"_LazyLoadedWorkflow({self.ref})"
+
 
 class DedupWorkflowCallbackStorage(CallbackStorage, abc.ABC):
     """
