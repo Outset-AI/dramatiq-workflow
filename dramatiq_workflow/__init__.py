@@ -10,11 +10,12 @@ from ._models import (
     WithDelay,
     WorkflowType,
 )
-from ._storage import CallbackStorage, InlineCallbackStorage
+from ._storage import CallbackStorage, DedupWorkflowCallbackStorage, InlineCallbackStorage
 
 __all__ = [
     "CallbackStorage",
     "Chain",
+    "DedupWorkflowCallbackStorage",
     "Group",
     "InlineCallbackStorage",
     "LazyWorkflow",
