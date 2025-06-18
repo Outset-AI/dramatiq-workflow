@@ -237,29 +237,42 @@ storage = MyS3Storage()  # Your custom storage backend
 broker.add_middleware(WorkflowMiddleware(backend, callback_storage=storage))
 ```
 
-#### Deduplicating Callbacks
+##### Deduplicating Workflows
 
-For convenience, `CallbackStorage` provides a helper method `_determine_dedup_key`
-that you can use to deduplicate callbacks for `Group` tasks. If the
-deduplication key already exists, storing can be skipped.
+For convenience, `dramatiq-workflow` provides an abstract
+`DedupWorkflowCallbackStorage` class that you can use to separate the storage
+of workflows from the storage of callbacks. This is useful for deduplicating
+large workflow definitions that may be part of multiple callbacks, especially
+when chaining large groups of tasks.
+
+To use it, you need to subclass `DedupWorkflowCallbackStorage` and implement
+the `_store_workflow` and `_load_workflow` methods.
 
 ```python
 from typing import Any
-from dramatiq_workflow import CallbackStorage, SerializedCompletionCallbacks
+from dramatiq_workflow import DedupWorkflowCallbackStorage
 
-class MyDedupStorage(CallbackStorage):
+class MyDedupStorage(DedupWorkflowCallbackStorage):
     def __init__(self):
-        self.__storage = MagicStorage()
+        # In a real application, this would be a persistent storage like a
+        # database or a distributed cache so that workers and producers can
+        # both access it.
+        self.__workflow_storage = {}
 
-    def store(self, callbacks: SerializedCompletionCallbacks) -> str:
-        dedup_key, _ = self._determine_dedup_key(callbacks)
-        if not self.__storage.exists(dedup_key):
-           self.__storage.set(dedup_key, callbacks)
-        return dedup_key
+    def _store_workflow(self, id: str, workflow: dict) -> Any:
+        # Using the `id` (which is the completion ID) to deduplicate.
+        workflow_key = id
+        if workflow_key not in self.__workflow_storage:
+            self.__workflow_storage[workflow_key] = workflow
+        return workflow_key  # Return a reference to the workflow.
 
-    def retrieve(self, ref: Any) -> SerializedCompletionCallbacks:
-        # ref will be the deduplication key from before
-        return self.__storage.get(ref)
+    def _load_workflow(self, id: str, ref: Any) -> dict:
+        # `ref` is what `_store_workflow` returned.
+        return self.__workflow_storage[ref]
+
+# You can also override `_store_callbacks` and `_retrieve_callbacks` to store
+# callbacks separately, for example in a database or S3. You can deduplicate
+# these as well by using the ID of the last callback, i.e. callbacks[-1][0].
 ```
 
 ### Barrier

@@ -39,28 +39,6 @@ class CallbackStorage(abc.ABC):
         """
         raise NotImplementedError
 
-    def _determine_dedup_key(self, callbacks: SerializedCompletionCallbacks) -> tuple[str, bool]:
-        """
-        Determines a deduplication key for the given callbacks.
-
-        This is used by deduplication storage backends to identify unique
-        callback sets.
-
-        Returns:
-            A tuple containing the completion ID and a boolean indicating if
-            the callbacks are part of a group (i.e. if deduplication is
-            strictly needed).
-        """
-
-        # NOTE: `Workflow.__augment_message` only calls the `CallbackStorage`
-        # when the `callbacks` list is not empty. This `assert` should always
-        # hold true.
-        assert isinstance(callbacks, list) and len(callbacks) > 0, "Callbacks must be a non-empty list"
-
-        last_callback = callbacks[-1]
-        completion_id, _, is_group = last_callback
-        return completion_id, is_group
-
 
 class InlineCallbackStorage(CallbackStorage):
     """
