@@ -3,7 +3,6 @@ import typing
 from ._models import (
     Chain,
     Group,
-    LazyWorkflow,
     Message,
     WithDelay,
     WorkflowType,
@@ -60,8 +59,8 @@ def unserialize_workflow_or_none(workflow: typing.Any) -> WorkflowType | None:
     Return an unserialized version of the workflow that can be used to create
     a Workflow instance.
     """
-    if isinstance(workflow, LazyWorkflow):
-        workflow = workflow.load()
+    if callable(workflow):
+        workflow = workflow()
 
     if workflow is None:
         return None

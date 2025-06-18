@@ -7,7 +7,7 @@ import dramatiq.rate_limits
 
 from .. import Chain, Group, WithDelay, Workflow, WorkflowMiddleware
 from .._constants import OPTION_KEY_CALLBACKS
-from .._models import LazyWorkflow, SerializedCompletionCallbacks
+from .._models import SerializedCompletionCallbacks
 from .._serialize import serialize_workflow, unserialize_workflow
 from .._storage import CallbackStorage
 
@@ -28,12 +28,12 @@ class MyDedupStorage(CallbackStorage):
         return self.storage[ref]
 
 
-class MyLazyWorkflow(LazyWorkflow):
+class MyLazyLoader:
     def __init__(self, workflow: dict):
         self._workflow = workflow
         self.loaded = False
 
-    def load(self) -> dict:
+    def __call__(self) -> dict:
         self.loaded = True
         return self._workflow
 
@@ -345,11 +345,11 @@ class WorkflowTests(unittest.TestCase):
         serialized = serialize_workflow(workflow)
         self.assertIsNotNone(serialized)
 
-        lazy_workflow = MyLazyWorkflow(serialized)
-        self.assertFalse(lazy_workflow.loaded)
+        lazy_loader = MyLazyLoader(serialized)
+        self.assertFalse(lazy_loader.loaded)
 
-        unserialized = unserialize_workflow(lazy_workflow)
-        self.assertTrue(lazy_workflow.loaded)
+        unserialized = unserialize_workflow(lazy_loader)
+        self.assertTrue(lazy_loader.loaded)
         self.assertEqual(workflow, unserialized)
 
     @mock.patch("dramatiq_workflow._base.time.time")

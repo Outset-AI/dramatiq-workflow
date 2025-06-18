@@ -9,7 +9,7 @@ from dramatiq.rate_limits.backends import StubBackend
 from dramatiq_workflow import Chain, WorkflowMiddleware
 from dramatiq_workflow._barrier import AtMostOnceBarrier
 from dramatiq_workflow._constants import OPTION_KEY_CALLBACKS
-from dramatiq_workflow._models import LazyWorkflow, SerializedCompletionCallbacks
+from dramatiq_workflow._models import SerializedCompletionCallbacks
 from dramatiq_workflow._serialize import serialize_workflow
 from dramatiq_workflow._storage import CallbackStorage
 
@@ -30,17 +30,6 @@ class MyDedupStorage(CallbackStorage):
         return self.storage[ref]
 
 
-class MyLazyWorkflow(LazyWorkflow):
-    def __init__(self, storage: "MyLazyStorage", ref: Any):
-        self._storage = storage
-        self._ref = ref
-        self.loaded = False
-
-    def load(self) -> dict:
-        self.loaded = True
-        return self._storage.retrieve_workflow(self._ref)
-
-
 class MyLazyStorage(CallbackStorage):
     def __init__(self):
         self.workflows = {}
@@ -48,6 +37,14 @@ class MyLazyStorage(CallbackStorage):
         self.workflow_ref_counter = 0
         self.callback_ref_counter = 0
         self.retrieve_calls = []
+        self.loaded_workflows = set()
+
+    def _create_loader(self, ref: Any):
+        def loader() -> dict:
+            self.loaded_workflows.add(ref)
+            return self.retrieve_workflow(ref)
+
+        return loader
 
     def store(self, callbacks: SerializedCompletionCallbacks) -> Any:
         new_callbacks = []
@@ -56,7 +53,7 @@ class MyLazyStorage(CallbackStorage):
                 ref = self.workflow_ref_counter
                 self.workflows[ref] = remaining_workflow
                 self.workflow_ref_counter += 1
-                lazy_workflow = MyLazyWorkflow(self, ref)
+                lazy_workflow = self._create_loader(ref)
                 new_callbacks.append((completion_id, lazy_workflow, is_group))
             else:
                 new_callbacks.append((completion_id, remaining_workflow, is_group))
@@ -195,8 +192,10 @@ class WorkflowMiddlewareTests(unittest.TestCase):
 
         # The lazy workflow object is now inside storage.callbacks[callbacks_ref]
         lazy_workflow_obj = storage.callbacks[callbacks_ref][0][1]
-        self.assertIsInstance(lazy_workflow_obj, MyLazyWorkflow)
-        self.assertFalse(lazy_workflow_obj.loaded)
+        self.assertTrue(callable(lazy_workflow_obj))
+
+        workflow_ref = 0
+        self.assertNotIn(workflow_ref, storage.loaded_workflows)
 
         # Set up barrier
         barrier = AtMostOnceBarrier(self.rate_limiter_backend, "barrier_1")
@@ -209,6 +208,6 @@ class WorkflowMiddlewareTests(unittest.TestCase):
         # Assertions
         self.assertEqual(len(storage.retrieve_calls), 1)
         self.assertEqual(storage.retrieve_calls[0], callbacks_ref)
-        self.assertTrue(lazy_workflow_obj.loaded)
+        self.assertIn(workflow_ref, storage.loaded_workflows)
 
         self.broker.enqueue.assert_called_once_with(self._make_message(message_timestamp=1337_000)._message, delay=None)
