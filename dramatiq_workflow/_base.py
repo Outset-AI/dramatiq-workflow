@@ -179,10 +179,10 @@ class Workflow:
 
     @property
     def __middleware(self) -> WorkflowMiddleware:
-        if not hasattr(self, "__cached_middleware"):
+        if not hasattr(self, "_cached_middleware"):
             for middleware in self.broker.middleware:
                 if isinstance(middleware, WorkflowMiddleware):
-                    self.__cached_middleware = middleware
+                    self._cached_middleware = middleware
                     break
             else:
                 raise RuntimeError(
@@ -190,7 +190,7 @@ class Workflow:
                     "to set it up? It is required if you want to use "
                     "workflows."
                 )
-        return self.__cached_middleware
+        return self._cached_middleware
 
     @property
     def __rate_limiter_backend(self) -> dramatiq.rate_limits.RateLimiterBackend:

@@ -12,14 +12,18 @@ class WorkflowTests(unittest.TestCase):
     def setUp(self):
         self.rate_limiter_backend = mock.create_autospec(dramatiq.rate_limits.RateLimiterBackend, instance=True)
         self.barrier = mock.create_autospec(dramatiq.rate_limits.Barrier)
-        self.broker = mock.MagicMock(
-            middleware=[
-                WorkflowMiddleware(
-                    rate_limiter_backend=self.rate_limiter_backend,
-                    barrier_type=self.barrier,
-                )
+        self.broker = mock.MagicMock()
+        self.workflow_middleware = WorkflowMiddleware(
+            rate_limiter_backend=self.rate_limiter_backend,
+            barrier_type=self.barrier,
+        )
+        self.middleware_list = mock.PropertyMock(
+            return_value=[
+                self.workflow_middleware,
             ]
         )
+        type(self.broker).middleware = self.middleware_list
+
         self.task = mock.MagicMock()
         self.task.message.side_effect = lambda *args, **kwargs: self.__make_message(
             self.__generate_id(), *args, **kwargs
@@ -434,3 +438,13 @@ class WorkflowTests(unittest.TestCase):
             ),
             delay=20,
         )
+
+    def test_middleware_is_cached(self):
+        workflow = Workflow(Chain(self.task.message(), self.task.message()), broker=self.broker)
+
+        # Access middleware property multiple times
+        workflow.run()
+        workflow.run()
+
+        # Check that broker.middleware was accessed only once
+        self.middleware_list.assert_called_once()
