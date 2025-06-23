@@ -462,7 +462,7 @@ class WorkflowTests(unittest.TestCase):
         )
 
     def test_middleware_is_cached(self):
-        workflow = Workflow(Chain(self.task.message(), self.task.message()), broker=self.broker)
+        workflow = Workflow(Chain(), broker=self.broker)
 
         # Access middleware property multiple times
         workflow.run()
