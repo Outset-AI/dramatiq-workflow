@@ -237,7 +237,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(enqueued_message.options, {})
 
     def test_missing_middleware(self):
-        self.broker.middleware = []
+        self.broker = mock.MagicMock(middleware=[])
         workflow = Workflow(Chain(), broker=self.broker)
         with self.assertRaisesRegex(RuntimeError, "WorkflowMiddleware middleware not found"):
             workflow.run()
