@@ -6,6 +6,7 @@ import dramatiq.rate_limits
 from ._barrier import AtMostOnceBarrier
 from ._constants import OPTION_KEY_CALLBACKS
 from ._helpers import workflow_with_completion_callbacks
+from ._models import SerializedCompletionCallbacks
 from ._serialize import unserialize_workflow
 from ._storage import CallbackStorage, InlineCallbackStorage
 
@@ -41,7 +42,11 @@ class WorkflowMiddleware(dramatiq.Middleware):
             return
 
         completion_callbacks = self.callback_storage.retrieve(callbacks_ref)
+        self._process_completion_callbacks(broker, completion_callbacks)
 
+    def _process_completion_callbacks(
+        self, broker: dramatiq.Broker, completion_callbacks: SerializedCompletionCallbacks
+    ):
         # Go through the completion callbacks backwards until we hit the first non-completed barrier
         while len(completion_callbacks) > 0:
             completion_id, remaining_workflow, propagate = completion_callbacks[-1]

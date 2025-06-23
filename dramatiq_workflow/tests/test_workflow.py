@@ -22,14 +22,18 @@ class WorkflowTests(unittest.TestCase):
     def setUp(self):
         self.rate_limiter_backend = mock.create_autospec(dramatiq.rate_limits.RateLimiterBackend, instance=True)
         self.barrier = mock.create_autospec(dramatiq.rate_limits.Barrier)
-        self.broker = mock.MagicMock(
-            middleware=[
-                WorkflowMiddleware(
-                    rate_limiter_backend=self.rate_limiter_backend,
-                    barrier_type=self.barrier,
-                )
+        self.broker = mock.MagicMock()
+        self.workflow_middleware = WorkflowMiddleware(
+            rate_limiter_backend=self.rate_limiter_backend,
+            barrier_type=self.barrier,
+        )
+        self.middleware_list = mock.PropertyMock(
+            return_value=[
+                self.workflow_middleware,
             ]
         )
+        type(self.broker).middleware = self.middleware_list
+
         self.task = mock.MagicMock()
         self.task.message.side_effect = lambda *args, **kwargs: self.__make_message(
             self.__generate_id(), *args, **kwargs
@@ -195,13 +199,58 @@ class WorkflowTests(unittest.TestCase):
             delay=None,
         )
 
-    @mock.patch("dramatiq_workflow._base.time.time")
-    def test_noop_workflow(self, time_mock):
-        time_mock.return_value = 1717526000.12
+    def test_empty_chain_workflow(self):
+        middleware = self.broker.middleware[0]
+        middleware._process_completion_callbacks = mock.MagicMock()
+
         workflow = Workflow(Chain(), broker=self.broker)
         workflow.run()
 
+        self.broker.enqueue.assert_not_called()
+        middleware._process_completion_callbacks.assert_called_once_with(self.broker, [])
+
+    def test_empty_group_workflow(self):
+        middleware = self.broker.middleware[0]
+        middleware._process_completion_callbacks = mock.MagicMock()
+
+        workflow = Workflow(Group(), broker=self.broker)
+        workflow.run()
+
+        self.broker.enqueue.assert_not_called()
+        middleware._process_completion_callbacks.assert_called_once_with(self.broker, [])
+
+    @mock.patch("dramatiq_workflow._base.workflow_noop.message")
+    @mock.patch("dramatiq_workflow._base.time.time")
+    def test_empty_chain_workflow_with_delay(self, time_mock, noop_message_mock):
+        time_mock.return_value = 1717526000.12
+        updated_timestamp = time_mock.return_value * 1000
+
+        original_noop_message = self.__make_message(999)
+        noop_message_mock.return_value = original_noop_message
+
+        middleware = self.broker.middleware[0]
+        middleware._process_completion_callbacks = mock.MagicMock()
+
+        workflow = Workflow(WithDelay(Chain(), delay=10), broker=self.broker)
+        workflow.run()
+
+        middleware._process_completion_callbacks.assert_not_called()
+        noop_message_mock.assert_called_once_with()
+
         self.broker.enqueue.assert_called_once()
+        args, kwargs = self.broker.enqueue.call_args
+        enqueued_message = args[0]
+
+        self.assertEqual(kwargs, {"delay": 10})
+        self.assertEqual(enqueued_message.message_id, original_noop_message.message_id)
+        self.assertEqual(enqueued_message.message_timestamp, updated_timestamp)
+        self.assertEqual(enqueued_message.options, {})
+
+    def test_missing_middleware(self):
+        self.broker = mock.MagicMock(middleware=[])
+        workflow = Workflow(Chain(), broker=self.broker)
+        with self.assertRaisesRegex(RuntimeError, "WorkflowMiddleware middleware not found"):
+            workflow.run()
 
     def test_unsupported_workflow(self):
         with self.assertRaises(TypeError):
@@ -411,3 +460,13 @@ class WorkflowTests(unittest.TestCase):
             ),
             delay=20,
         )
+
+    def test_middleware_is_cached(self):
+        workflow = Workflow(Chain(self.task.message(), self.task.message()), broker=self.broker)
+
+        # Access middleware property multiple times
+        workflow.run()
+        workflow.run()
+
+        # Check that broker.middleware was accessed only once
+        self.middleware_list.assert_called_once()
