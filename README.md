@@ -269,10 +269,6 @@ class MyDedupStorage(DedupWorkflowCallbackStorage):
     def _load_workflow(self, id: str, ref: Any) -> dict:
         # `ref` is what `_store_workflow` returned.
         return self.__workflow_storage[ref]
-
-# You can also override `_store_callbacks` and `_retrieve_callbacks` to store
-# callbacks separately, for example in a database or S3. You can deduplicate
-# these as well by using the ID of the last callback, i.e. callbacks[-1][0].
 ```
 
 ### Barrier

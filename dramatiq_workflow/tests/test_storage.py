@@ -11,8 +11,6 @@ class MyDedupStorage(DedupWorkflowCallbackStorage):
         self.callbacks = {}
         self.workflow_store_calls = []
         self.workflow_load_calls = []
-        self.callback_store_calls = []
-        self.callback_retrieve_calls = []
 
     def _store_workflow(self, id: str, workflow: dict) -> Any:
         self.workflow_store_calls.append((id, workflow))
@@ -23,16 +21,6 @@ class MyDedupStorage(DedupWorkflowCallbackStorage):
     def _load_workflow(self, id: str, ref: Any) -> dict:
         self.workflow_load_calls.append((id, ref))
         return self.workflows[ref]
-
-    def _store_callbacks(self, callbacks: list[tuple[str, Any | None, bool]]) -> Any:
-        self.callback_store_calls.append(callbacks)
-        ref = f"callback-ref-{len(self.callbacks)}"
-        self.callbacks[ref] = callbacks
-        return ref
-
-    def _retrieve_callbacks(self, ref: Any) -> list[tuple[str, Any | None, bool]]:
-        self.callback_retrieve_calls.append(ref)
-        return self.callbacks[ref]
 
 
 class DedupWorkflowCallbackStorageTests(unittest.TestCase):
@@ -48,23 +36,14 @@ class DedupWorkflowCallbackStorageTests(unittest.TestCase):
 
         # Store callbacks
         callbacks_ref = self.storage.store(callbacks)
-        self.assertEqual(callbacks_ref, "callback-ref-0")
+        self.assertEqual(callbacks_ref, [("id1", "workflow-ref-id1", False), ("id2", None, True)])
 
         # Check what was stored
         self.assertEqual(len(self.storage.workflow_store_calls), 1)
         self.assertEqual(self.storage.workflow_store_calls[0], ("id1", workflow_dict))
 
-        self.assertEqual(len(self.storage.callback_store_calls), 1)
-        stored_callbacks = self.storage.callback_store_calls[0]
-        self.assertEqual(len(stored_callbacks), 2)
-        self.assertEqual(stored_callbacks[0], ("id1", "workflow-ref-id1", False))
-        self.assertEqual(stored_callbacks[1], ("id2", None, True))
-
         # Retrieve callbacks
         retrieved_callbacks = self.storage.retrieve(callbacks_ref)
-        self.assertEqual(len(self.storage.callback_retrieve_calls), 1)
-        self.assertEqual(self.storage.callback_retrieve_calls[0], callbacks_ref)
-
         self.assertEqual(len(retrieved_callbacks), 2)
 
         # Check first callback (with workflow)
@@ -81,31 +60,22 @@ class DedupWorkflowCallbackStorageTests(unittest.TestCase):
 
         # Load the workflow
         self.assertEqual(len(self.storage.workflow_load_calls), 0)
+        assert callable(loader1)
         loaded_workflow = loader1()
         self.assertEqual(len(self.storage.workflow_load_calls), 1)
         self.assertEqual(self.storage.workflow_load_calls[0], ("id1", "workflow-ref-id1"))
         self.assertEqual(loaded_workflow, workflow_dict)
 
-    def test_retrieve_does_not_wrap_callable(self):
-        def lazy_workflow():
+    def test_store_with_unsupported_workflow_type(self):
+        def unsupported_lazy_workflow():
             return {"__type__": "chain", "children": []}
 
         callbacks: SerializedCompletionCallbacks = [
-            ("id1", lazy_workflow, False),
+            ("id1", unsupported_lazy_workflow, False),
         ]
 
-        # Store should not call _store_workflow
-        callbacks_ref = self.storage.store(callbacks)
-        self.assertEqual(len(self.storage.workflow_store_calls), 0)
-
-        stored_callbacks = self.storage.callback_store_calls[0]
-        self.assertIs(stored_callbacks[0][1], lazy_workflow)
-
-        # Retrieve should not wrap the callable
-        retrieved_callbacks = self.storage.retrieve(callbacks_ref)
-
-        id1, loader1, is_group1 = retrieved_callbacks[0]
-        self.assertIs(loader1, lazy_workflow)
+        with self.assertRaises(TypeError):
+            self.storage.store(callbacks)
 
     def test_store_with_already_lazy_loaded_workflow(self):
         # This test ensures that when we store a workflow that has already been
@@ -132,6 +102,4 @@ class DedupWorkflowCallbackStorageTests(unittest.TestCase):
         self.assertEqual(len(self.storage.workflow_store_calls), 1)
 
         # 4. The new stored callbacks should contain the original workflow reference.
-        stored_callbacks2 = self.storage.callbacks[callbacks_ref2]
-        self.assertEqual(len(stored_callbacks2), 1)
-        self.assertEqual(stored_callbacks2[0], ("id2", "workflow-ref-id1", False))
+        self.assertEqual(callbacks_ref2[0][1], callbacks_ref1[0][1])
