@@ -48,12 +48,31 @@ def unserialize_workflow(workflow: typing.Any) -> WorkflowType:
     Return an unserialized version of the workflow that can be used to create
     a Workflow instance.
     """
+    result = unserialize_workflow_or_none(workflow)
+    if result is None:
+        raise ValueError("Cannot unserialize a workflow that resolves to None")
+    return result
+
+
+def unserialize_workflow_or_none(workflow: typing.Any) -> WorkflowType | None:
+    """
+    Return an unserialized version of the workflow that can be used to create
+    a Workflow instance.
+    """
+    if callable(workflow):
+        workflow = workflow()
+
     if workflow is None:
-        raise ValueError("Cannot unserialize None")
+        return None
 
     if not isinstance(workflow, dict):
         raise TypeError(f"Unsupported data type: {type(workflow)}")
 
+    return _unserialize_workflow_from_dict(workflow)
+
+
+def _unserialize_workflow_from_dict(workflow: dict) -> WorkflowType:
+    """Helper to unserialize from a dict, assuming it's not None and is a dict."""
     workflow_type = workflow.pop("__type__")
     match workflow_type:
         case "message":
@@ -69,9 +88,3 @@ def unserialize_workflow(workflow: typing.Any) -> WorkflowType:
             )
 
     raise TypeError(f"Unsupported workflow type: {workflow_type}")
-
-
-def unserialize_workflow_or_none(workflow: typing.Any) -> WorkflowType | None:
-    if workflow is None:
-        return None
-    return unserialize_workflow(workflow)

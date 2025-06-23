@@ -10,6 +10,7 @@ from ._helpers import workflow_with_completion_callbacks
 from ._middleware import WorkflowMiddleware, workflow_noop
 from ._models import Chain, Group, Message, SerializedCompletionCallbacks, WithDelay, WorkflowType
 from ._serialize import serialize_workflow
+from ._storage import CallbackStorage
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +146,21 @@ class Workflow:
         )
 
     def __schedule_noop(self, completion_callbacks: SerializedCompletionCallbacks):
+        """
+        Schedules a no-op task to trigger the workflow middleware.
+
+        This is necessary when a Chain or a Group is empty, to ensure that
+        the completion callbacks are still processed and the workflow can
+        continue.
+        """
+
+        if not self._delay:
+            # If there is no delay, we can process the completion callbacks
+            # immediately instead of scheduling a noop task. This saves us a
+            # round trip to the broker and having to encode the workflow.
+            self.__middleware._process_completion_callbacks(self.broker, completion_callbacks)
+            return
+
         noop_message = workflow_noop.message()
         noop_message = self.__augment_message(noop_message, completion_callbacks)
         self.broker.enqueue(noop_message, delay=self._delay)
@@ -152,7 +168,8 @@ class Workflow:
     def __augment_message(self, message: Message, completion_callbacks: SerializedCompletionCallbacks) -> Message:
         options = {}
         if completion_callbacks:
-            options = {OPTION_KEY_CALLBACKS: completion_callbacks}
+            callbacks_ref = self.__callback_storage.store(completion_callbacks)
+            options = {OPTION_KEY_CALLBACKS: callbacks_ref}
 
         return message.copy(
             # We reset the message timestamp to better represent the time the
@@ -164,10 +181,10 @@ class Workflow:
 
     @property
     def __middleware(self) -> WorkflowMiddleware:
-        if not hasattr(self, "__cached_middleware"):
+        if not hasattr(self, "_cached_middleware"):
             for middleware in self.broker.middleware:
                 if isinstance(middleware, WorkflowMiddleware):
-                    self.__cached_middleware = middleware
+                    self._cached_middleware = middleware
                     break
             else:
                 raise RuntimeError(
@@ -175,7 +192,7 @@ class Workflow:
                     "to set it up? It is required if you want to use "
                     "workflows."
                 )
-        return self.__cached_middleware
+        return self._cached_middleware
 
     @property
     def __rate_limiter_backend(self) -> dramatiq.rate_limits.RateLimiterBackend:
@@ -184,6 +201,10 @@ class Workflow:
     @property
     def __barrier_type(self) -> type[dramatiq.rate_limits.Barrier]:
         return self.__middleware.barrier_type
+
+    @property
+    def __callback_storage(self) -> CallbackStorage:
+        return self.__middleware.callback_storage
 
     def __create_barrier(self, count: int) -> str:
         completion_uuid = str(uuid4())
