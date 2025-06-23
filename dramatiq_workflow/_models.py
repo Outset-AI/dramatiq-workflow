@@ -1,3 +1,5 @@
+import typing
+
 import dramatiq
 import dramatiq.rate_limits
 
@@ -39,5 +41,6 @@ class WithDelay:
 Message = dramatiq.Message
 WorkflowType = Message | Chain | Group | WithDelay
 
-SerializedCompletionCallback = tuple[str | None, dict | None, bool]
+LazyWorkflow = typing.Callable[[], dict]
+SerializedCompletionCallback = tuple[str, dict | LazyWorkflow | None, bool]
 SerializedCompletionCallbacks = list[SerializedCompletionCallback]

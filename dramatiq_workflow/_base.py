@@ -10,6 +10,7 @@ from ._helpers import workflow_with_completion_callbacks
 from ._middleware import WorkflowMiddleware, workflow_noop
 from ._models import Chain, Group, Message, SerializedCompletionCallbacks, WithDelay, WorkflowType
 from ._serialize import serialize_workflow
+from ._storage import CallbackStorage
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +168,8 @@ class Workflow:
     def __augment_message(self, message: Message, completion_callbacks: SerializedCompletionCallbacks) -> Message:
         options = {}
         if completion_callbacks:
-            options = {OPTION_KEY_CALLBACKS: completion_callbacks}
+            callbacks_ref = self.__callback_storage.store(completion_callbacks)
+            options = {OPTION_KEY_CALLBACKS: callbacks_ref}
 
         return message.copy(
             # We reset the message timestamp to better represent the time the
@@ -199,6 +201,10 @@ class Workflow:
     @property
     def __barrier_type(self) -> type[dramatiq.rate_limits.Barrier]:
         return self.__middleware.barrier_type
+
+    @property
+    def __callback_storage(self) -> CallbackStorage:
+        return self.__middleware.callback_storage
 
     def __create_barrier(self, count: int) -> str:
         completion_uuid = str(uuid4())

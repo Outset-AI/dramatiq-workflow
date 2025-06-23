@@ -8,6 +8,16 @@ from .. import Chain, Group, WithDelay, Workflow, WorkflowMiddleware
 from .._serialize import serialize_workflow, unserialize_workflow
 
 
+class MyLazyLoader:
+    def __init__(self, workflow: dict):
+        self._workflow = workflow
+        self.loaded = False
+
+    def __call__(self) -> dict:
+        self.loaded = True
+        return self._workflow
+
+
 class WorkflowTests(unittest.TestCase):
     def setUp(self):
         self.rate_limiter_backend = mock.create_autospec(dramatiq.rate_limits.RateLimiterBackend, instance=True)
@@ -359,6 +369,18 @@ class WorkflowTests(unittest.TestCase):
         unserialized = unserialize_workflow(serialized)
         self.assertEqual(workflow.workflow, unserialized)
 
+    def test_unserialize_lazy_workflow(self):
+        workflow = Chain(self.task.message())
+        serialized = serialize_workflow(workflow)
+        self.assertIsNotNone(serialized)
+
+        lazy_loader = MyLazyLoader(serialized)
+        self.assertFalse(lazy_loader.loaded)
+
+        unserialized = unserialize_workflow(lazy_loader)
+        self.assertTrue(lazy_loader.loaded)
+        self.assertEqual(workflow, unserialized)
+
     @mock.patch("dramatiq_workflow._base.time.time")
     def test_additive_delays(self, time_mock):
         time_mock.return_value = 1717526000.12
@@ -440,7 +462,7 @@ class WorkflowTests(unittest.TestCase):
         )
 
     def test_middleware_is_cached(self):
-        workflow = Workflow(Chain(self.task.message(), self.task.message()), broker=self.broker)
+        workflow = Workflow(Chain(), broker=self.broker)
 
         # Access middleware property multiple times
         workflow.run()

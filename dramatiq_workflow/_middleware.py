@@ -8,6 +8,7 @@ from ._constants import OPTION_KEY_CALLBACKS
 from ._helpers import workflow_with_completion_callbacks
 from ._models import SerializedCompletionCallbacks
 from ._serialize import unserialize_workflow
+from ._storage import CallbackStorage, InlineCallbackStorage
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +18,11 @@ class WorkflowMiddleware(dramatiq.Middleware):
         self,
         rate_limiter_backend: dramatiq.rate_limits.RateLimiterBackend,
         barrier_type: type[dramatiq.rate_limits.Barrier] = AtMostOnceBarrier,
+        callback_storage: CallbackStorage | None = None,
     ):
         self.rate_limiter_backend = rate_limiter_backend
         self.barrier_type = barrier_type
+        self.callback_storage = callback_storage or InlineCallbackStorage()
 
     def after_process_boot(self, broker: dramatiq.Broker):
         broker.declare_actor(workflow_noop)
@@ -34,10 +37,11 @@ class WorkflowMiddleware(dramatiq.Middleware):
         if message.failed:
             return
 
-        completion_callbacks: SerializedCompletionCallbacks | None = message.options.get(OPTION_KEY_CALLBACKS)
-        if completion_callbacks is None:
+        callbacks_ref = message.options.get(OPTION_KEY_CALLBACKS)
+        if callbacks_ref is None:
             return
 
+        completion_callbacks = self.callback_storage.retrieve(callbacks_ref)
         self._process_completion_callbacks(broker, completion_callbacks)
 
     def _process_completion_callbacks(
@@ -46,11 +50,10 @@ class WorkflowMiddleware(dramatiq.Middleware):
         # Go through the completion callbacks backwards until we hit the first non-completed barrier
         while len(completion_callbacks) > 0:
             completion_id, remaining_workflow, propagate = completion_callbacks[-1]
-            if completion_id is not None:
-                barrier = self.barrier_type(self.rate_limiter_backend, completion_id)
-                if not barrier.wait(block=False):
-                    logger.debug("Barrier not completed: %s", completion_id)
-                    break
+            barrier = self.barrier_type(self.rate_limiter_backend, completion_id)
+            if not barrier.wait(block=False):
+                logger.debug("Barrier not completed: %s", completion_id)
+                break
 
             logger.debug("Barrier completed: %s", completion_id)
             completion_callbacks.pop()
