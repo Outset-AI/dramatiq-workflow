@@ -4,7 +4,7 @@ import dramatiq
 import dramatiq.rate_limits
 
 from ._barrier import AtMostOnceBarrier
-from ._constants import OPTION_KEY_CALLBACKS
+from ._constants import OPTION_KEY_CALLBACKS, OPTION_KEY_IGNORE_FAILURES
 from ._helpers import workflow_with_completion_callbacks
 from ._models import SerializedCompletionCallbacks
 from ._serialize import unserialize_workflow
@@ -30,12 +30,12 @@ class WorkflowMiddleware(dramatiq.Middleware):
     def after_process_message(
         self, broker: dramatiq.Broker, message: dramatiq.broker.MessageProxy, *, result=None, exception=None
     ):
-        if exception is not None:
-            # TODO: Add a way to handle exceptions in the workflow?
+        ignore_failures = message.options.get(OPTION_KEY_IGNORE_FAILURES, False)
+        if (exception is not None or message.failed) and not ignore_failures:
+            logger.warning("Message failed: %s and failure is not ignored. so exiting the workflow", message.message_id)
             return
-
-        if message.failed:
-            return
+        elif exception is not None or message.failed:
+            logger.info("Message failed: %s and failure is ignored. so continuing the workflow", message.message_id)
 
         callbacks_ref = message.options.get(OPTION_KEY_CALLBACKS)
         if callbacks_ref is None:
