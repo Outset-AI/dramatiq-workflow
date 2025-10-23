@@ -172,3 +172,27 @@ class WorkflowMiddlewareTests(unittest.TestCase):
         self.assertIn(workflow_ref, storage.loaded_workflows)
 
         self.broker.enqueue.assert_called_once_with(self._make_message(message_timestamp=1337_000)._message, delay=None)
+
+    @mock.patch("dramatiq_workflow._middleware.workflow_with_completion_callbacks")
+    @mock.patch("dramatiq_workflow._middleware.unserialize_workflow")
+    def test_barrier_confirmation_happens_after_unserialize(self, mock_unserialize, mock_workflow_with_callbacks):
+        call_order: list[str] = []
+        mock_unserialize.side_effect = lambda workflow: call_order.append("unserialize") or mock.sentinel.workflow
+
+        workflow_runner = mock.Mock()
+        workflow_runner.run.side_effect = lambda: call_order.append("run")
+        mock_workflow_with_callbacks.return_value = workflow_runner
+
+        with mock.patch.object(AtMostOnceBarrier, "confirm_release", autospec=True) as mock_confirm:
+            mock_confirm.side_effect = lambda *_args, **_kwargs: call_order.append("confirm") or True
+            barrier_key = "barrier_order"
+            barrier = AtMostOnceBarrier(self.rate_limiter_backend, barrier_key)
+            barrier.create(1)
+            message = self._make_message({OPTION_KEY_CALLBACKS: [(barrier_key, object(), True)]})
+
+            self.middleware.after_process_message(self.broker, message)
+
+        self.assertEqual(call_order, ["unserialize", "confirm", "run"])
+        mock_unserialize.assert_called_once()
+        mock_confirm.assert_called_once()
+        mock_workflow_with_callbacks.assert_called_once()
