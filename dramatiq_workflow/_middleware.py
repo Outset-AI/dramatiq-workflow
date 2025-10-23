@@ -60,7 +60,9 @@ class WorkflowMiddleware(dramatiq.Middleware):
             confirm_release = getattr(barrier, "confirm_release", None) or (lambda: True)
 
             if remaining_workflow is None:
-                confirm_release()
+                release_confirmed = confirm_release()
+                if not release_confirmed:
+                    break
                 continue
 
             workflow = unserialize_workflow(remaining_workflow)
@@ -69,7 +71,7 @@ class WorkflowMiddleware(dramatiq.Middleware):
             # worker crashes between recording the release and doing the heavy work.
             release_confirmed = confirm_release()
             if not release_confirmed:
-                continue
+                break
 
             workflow_with_completion_callbacks(
                 workflow,
