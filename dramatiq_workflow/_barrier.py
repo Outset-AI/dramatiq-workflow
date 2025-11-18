@@ -7,16 +7,14 @@ logger = logging.getLogger(__name__)
 
 class AtMostOnceBarrier(dramatiq.rate_limits.Barrier):
     """
-    The AtMostOnceBarrier is a barrier that ensures that it is released at most
-    once.
+    A barrier that lets the workflow middleware record completion in two steps.
 
-    We use this because we want to avoid running callbacks in chains multiple
-    times. Running callbacks more than once can have compounding effects
-    especially when groups are involved.
-
-    The downside of this is that we cannot guarantee that the barrier will be
-    released at all. Theoretically a worker could die after releasing the
-    barrier but just before it has a chance to schedule the callbacks.
+    The regular barrier `wait` semantics are untouched. Once all parties arrive,
+    callers may optionally invoke :meth:`confirm_release` to permanently record
+    that the completion callbacks have been scheduled. By deferring this final
+    confirmation until after expensive work (for example, unserializing a large
+    workflow) has succeeded, we lower the chance that a worker fails between
+    releasing the barrier and scheduling follow-up tasks.
     """
 
     def __init__(self, backend, key, *args, ttl=900000):
@@ -27,18 +25,11 @@ class AtMostOnceBarrier(dramatiq.rate_limits.Barrier):
         self.backend.add(self.ran_key, -1, self.ttl)
         return super().create(parties)
 
-    def wait(self, *args, block=True, timeout=None):
-        if block:
-            # Blocking with an AtMostOnceBarrier is not supported as it could
-            # lead to clients waiting indefinitely if the barrier already
-            # released.
-            raise ValueError("Blocking is not supported by AtMostOnceBarrier")
-
-        released = super().wait(*args, block=False)
-        if released:
-            never_released = self.backend.incr(self.ran_key, 1, 0, self.ttl)
-            if not never_released:
-                logger.warning("Barrier %s release already recorded; ignoring subsequent release attempt", self.key)
-            return never_released
-
-        return False
+    def confirm_release(self):
+        """
+        Check and set the flag that ensures callbacks only run once.
+        """
+        never_released = self.backend.incr(self.ran_key, 1, 0, self.ttl)
+        if not never_released:
+            logger.warning("Barrier %s release already recorded; ignoring subsequent release attempt", self.key)
+        return never_released

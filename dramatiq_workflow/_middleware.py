@@ -57,10 +57,24 @@ class WorkflowMiddleware(dramatiq.Middleware):
 
             logger.debug("Barrier completed: %s", completion_id)
             completion_callbacks.pop()
+            confirm_release = getattr(barrier, "confirm_release", None) or (lambda: True)
+
             if remaining_workflow is None:
+                release_confirmed = confirm_release()
+                if not release_confirmed:
+                    break
                 continue
+
+            workflow = unserialize_workflow(remaining_workflow)
+            # unserialize_workflow can be expensive for large workflows. By confirming the
+            # AtMostOnceBarrier only after this step succeeds we reduce the chance that a
+            # worker crashes between recording the release and doing the heavy work.
+            release_confirmed = confirm_release()
+            if not release_confirmed:
+                break
+
             workflow_with_completion_callbacks(
-                unserialize_workflow(remaining_workflow),
+                workflow,
                 broker,
                 completion_callbacks,
             ).run()
