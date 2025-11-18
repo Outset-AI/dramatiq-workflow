@@ -8,7 +8,7 @@ from dramatiq.rate_limits.backends import StubBackend
 
 from dramatiq_workflow import Chain, WorkflowMiddleware
 from dramatiq_workflow._barrier import AtMostOnceBarrier
-from dramatiq_workflow._constants import OPTION_KEY_CALLBACKS
+from dramatiq_workflow._constants import OPTION_KEY_CALLBACKS, OPTION_KEY_IGNORE_FAILURES
 from dramatiq_workflow._models import SerializedCompletionCallbacks
 from dramatiq_workflow._serialize import serialize_workflow
 from dramatiq_workflow._storage import CallbackStorage
@@ -112,6 +112,32 @@ class WorkflowMiddlewareTests(unittest.TestCase):
 
         self.broker.enqueue.assert_not_called()
 
+    @mock.patch("dramatiq_workflow._base.time.time")
+    def test_after_process_message_with_exception_ignore_failures(self, mock_time):
+        mock_time.return_value = 1337
+        barrier_key = "barrier_1"
+        barrier = AtMostOnceBarrier(self.rate_limiter_backend, barrier_key)
+        barrier.create(1)
+        message = self._make_message({OPTION_KEY_CALLBACKS: [(barrier_key, self._create_serialized_workflow(), True)], OPTION_KEY_IGNORE_FAILURES: True})
+        print(message.options)
+
+        self.middleware.after_process_message(self.broker, message, exception=Exception("Test exception"))
+
+        self.broker.enqueue.assert_called_once_with(self._make_message(message_timestamp=1337_000)._message, delay=None)
+
+    @mock.patch("dramatiq_workflow._base.time.time")
+    def test_after_process_message_with_failed_message_ignore_failures(self, mock_time):
+        mock_time.return_value = 1337
+        barrier_key = "barrier_1"
+        barrier = AtMostOnceBarrier(self.rate_limiter_backend, barrier_key)
+        barrier.create(1)        
+        message = self._make_message({OPTION_KEY_CALLBACKS: [(barrier_key, self._create_serialized_workflow(), True)], OPTION_KEY_IGNORE_FAILURES: True})        
+        message.failed = True
+
+        self.middleware.after_process_message(self.broker, message)
+        self.broker.enqueue.assert_called_once_with(self._make_message(message_timestamp=1337_000)._message, delay=None)
+
+        
     @mock.patch("dramatiq_workflow._base.time.time")
     def test_after_process_message_with_workflow(self, mock_time):
         mock_time.return_value = 1337
