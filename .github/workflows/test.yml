@@ -33,5 +33,13 @@ jobs:
         pip install -r requirements.txt
         pip install "dramatiq~=${{ matrix.dramatiq-major }}.0"
 
+    - name: Show versions
+      run: |
+        python - <<'PY'
+        import dramatiq, sys
+        print(f"Python {sys.version.split()[0]}")
+        print(f"Dramatiq {dramatiq.__version__}")
+        PY
+
     - name: Run tests
       run: make test
