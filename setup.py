@@ -11,7 +11,7 @@ setup(
     url="https://github.com/Outset-AI/dramatiq-workflow",
     packages=find_packages(),
     install_requires=[
-        "dramatiq>=1.10.0",
+        "dramatiq>=1.10.0,<3.0.0",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
