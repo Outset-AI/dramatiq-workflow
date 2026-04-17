@@ -151,7 +151,70 @@ workflow = Workflow(
 ```
 
 In this example, Task 2 will run roughly 1 second after Task 1 finishes, and
-Task 3 and will run 2 seconds after Task 2 finishes.
+Tasks 3 and 4 will run 2 seconds after Task 2 finishes.
+
+### Handling Permanent Failures
+
+`dramatiq-workflow` does not provide built-in workflow-level failure handling.
+"What should happen when a workflow fails" is highly application-specific —
+fire-once vs. per-message, cancel pending steps or not, what to pass to the
+handler, how to interact with retries — and no single default is right for
+everyone.
+
+Instead, `dramatiq-workflow` exposes a helper, `walk_messages`, that makes it
+easy to build the semantics you want in a handful of lines of your own code.
+The pattern: stamp every message in the workflow with a failure-callback
+payload, then register a middleware that enqueues the payload when a message
+permanently fails.
+
+```python
+import dramatiq
+from dramatiq_workflow import Chain, Group, Workflow, walk_messages
+
+@dramatiq.actor
+def handle_failure(failed_message_id, failed_actor_name):
+    # Your alerting / cleanup / compensation logic.
+    # Should be idempotent — see caveats below.
+    ...
+
+# 1. Build the workflow tree and stamp every message with a failure payload.
+workflow_tree = Chain(
+    task1.message(),
+    Group(task2.message(), task3.message()),
+    task4.message(),
+)
+for msg in walk_messages(workflow_tree):
+    msg.options["on_failure"] = handle_failure.message(
+        msg.message_id, msg.actor_name
+    ).asdict()
+
+Workflow(workflow_tree).run()
+```
+
+```python
+# 2. Register a middleware that fires the stored callback on permanent failure.
+class WorkflowFailureMiddleware(dramatiq.Middleware):
+    def after_process_message(self, broker, message, *, result=None, exception=None):
+        if message.failed and "on_failure" in message.options:
+            broker.enqueue(dramatiq.Message(**message.options["on_failure"]))
+
+broker.add_middleware(WorkflowFailureMiddleware())
+```
+
+#### Caveats
+
+- **Fires per failing message.** A `Group` with three failing members enqueues
+  three failure callbacks. Make your handler idempotent.
+- **Requires dramatiq's `Retries` middleware** (active by default) to set
+  `message.failed=True` once retries are exhausted.
+- **The stamped payload lives in `message.options`** and must be
+  JSON-serializable by your broker's encoder.
+- **Nested workflows** dispatched from inside an actor are not stamped
+  automatically — call `walk_messages` on those trees too.
+- **`workflow_noop`** (auto-inserted by the library for empty `Chain` or
+  `Group`) is never stamped, but it does nothing and cannot meaningfully fail.
+- **The failure-handler message itself** should not carry a completion-callback
+  option — enqueue it fresh as shown, don't clone a workflow message.
 
 ### Large Workflows
 

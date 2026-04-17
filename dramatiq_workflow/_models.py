@@ -44,3 +44,21 @@ WorkflowType = Message | Chain | Group | WithDelay
 LazyWorkflow = typing.Callable[[], dict]
 SerializedCompletionCallback = tuple[str, dict | LazyWorkflow | None, bool]
 SerializedCompletionCallbacks = list[SerializedCompletionCallback]
+
+
+def walk_messages(workflow: WorkflowType) -> typing.Iterator[Message]:
+    """Yield every Message in a workflow tree, in definition order.
+
+    Useful for stamping custom options on every message before calling
+    ``Workflow(...).run()`` — see the "Handling Permanent Failures"
+    section of the README for the failure-callback pattern.
+    """
+    if isinstance(workflow, Message):
+        yield workflow
+    elif isinstance(workflow, (Chain, Group)):
+        for task in workflow.tasks:
+            yield from walk_messages(task)
+    elif isinstance(workflow, WithDelay):
+        yield from walk_messages(workflow.task)
+    else:
+        raise TypeError(f"Unsupported workflow type: {type(workflow)}")
