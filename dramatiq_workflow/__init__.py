@@ -9,6 +9,7 @@ from ._models import (
     SerializedCompletionCallbacks,
     WithDelay,
     WorkflowType,
+    walk_messages,
 )
 from ._storage import CallbackStorage, DedupWorkflowCallbackStorage, InlineCallbackStorage
 
@@ -26,4 +27,5 @@ __all__ = [
     "Workflow",
     "WorkflowMiddleware",
     "WorkflowType",
+    "walk_messages",
 ]
