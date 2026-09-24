@@ -9,3 +9,23 @@ fixable = ["ALL"]
 
 [tool.pytest.ini_options]
 norecursedirs = '.git'
+
+[tool.mypy]
+strict = true
+# dramatiq ships py.typed but leaves some methods (Barrier, declare_actor, ...) unannotated.
+untyped_calls_exclude = ["dramatiq"]
+
+[[tool.mypy.overrides]]
+# untyped_calls_exclude does not apply to super() calls into dramatiq's Barrier.
+module = "dramatiq_workflow._barrier"
+disallow_untyped_calls = false
+
+[[tool.mypy.overrides]]
+module = "dramatiq_workflow.tests.*"
+# Tests are held to default mypy checking, not strict. `strict` itself can't be set per module.
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+disallow_any_generics = false
+warn_return_any = false
+check_untyped_defs = true

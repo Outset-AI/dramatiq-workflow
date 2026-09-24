@@ -1,5 +1,6 @@
 import logging
 import time
+from typing import Any
 from uuid import uuid4
 
 import dramatiq
@@ -87,18 +88,18 @@ class Workflow:
         self,
         workflow: WorkflowType,
         broker: dramatiq.Broker | None = None,
-    ):
+    ) -> None:
         self.workflow = workflow
         self.broker = broker or dramatiq.get_broker()
 
-        self._delay = None
+        self._delay: int | None = None
         self._completion_callbacks: SerializedCompletionCallbacks | None = None
 
         while isinstance(self.workflow, WithDelay):
             self._delay = (self._delay or 0) + self.workflow.delay
             self.workflow = self.workflow.task
 
-    def run(self):
+    def run(self) -> None:
         current = self.workflow
         completion_callbacks = self._completion_callbacks or []
 
@@ -137,7 +138,9 @@ class Workflow:
 
         raise TypeError(f"Unsupported workflow type: {type(current)}")
 
-    def __workflow_with_completion_callbacks(self, task, completion_callbacks) -> "Workflow":
+    def __workflow_with_completion_callbacks(
+        self, task: WorkflowType, completion_callbacks: SerializedCompletionCallbacks
+    ) -> "Workflow":
         return workflow_with_completion_callbacks(
             task,
             self.broker,
@@ -145,7 +148,7 @@ class Workflow:
             delay=self._delay,
         )
 
-    def __schedule_noop(self, completion_callbacks: SerializedCompletionCallbacks):
+    def __schedule_noop(self, completion_callbacks: SerializedCompletionCallbacks) -> None:
         """
         Schedules a no-op task to trigger the workflow middleware.
 
@@ -165,8 +168,10 @@ class Workflow:
         noop_message = self.__augment_message(noop_message, completion_callbacks)
         self.broker.enqueue(noop_message, delay=self._delay)
 
-    def __augment_message(self, message: Message, completion_callbacks: SerializedCompletionCallbacks) -> Message:
-        options = {}
+    def __augment_message(
+        self, message: Message[Any], completion_callbacks: SerializedCompletionCallbacks
+    ) -> Message[Any]:
+        options: dict[str, Any] = {}
         if completion_callbacks:
             callbacks_ref = self.__callback_storage.store(completion_callbacks)
             options = {OPTION_KEY_CALLBACKS: callbacks_ref}
@@ -203,7 +208,7 @@ class Workflow:
         return self.__middleware.barrier_type
 
     @property
-    def __callback_storage(self) -> CallbackStorage:
+    def __callback_storage(self) -> CallbackStorage[Any]:
         return self.__middleware.callback_storage
 
     def __create_barrier(self, count: int) -> str:
@@ -213,5 +218,5 @@ class Workflow:
         logger.debug("Barrier created: %s (%d tasks)", completion_uuid, count)
         return completion_uuid
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Workflow({serialize_workflow(self.workflow)})"

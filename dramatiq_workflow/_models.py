@@ -8,10 +8,10 @@ class Chain:
     def __init__(self, *tasks: "WorkflowType"):
         self.tasks = list(tasks)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Chain({self.tasks})"
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return isinstance(other, Chain) and self.tasks == other.tasks
 
 
@@ -19,10 +19,10 @@ class Group:
     def __init__(self, *tasks: "WorkflowType"):
         self.tasks = list(tasks)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Group({self.tasks})"
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return isinstance(other, Group) and self.tasks == other.tasks
 
 
@@ -31,22 +31,22 @@ class WithDelay:
         self.task = task
         self.delay = delay
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"WithDelay({self.task}, {self.delay})"
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return isinstance(other, WithDelay) and self.task == other.task and self.delay == other.delay
 
 
 Message = dramatiq.Message
-WorkflowType = Message | Chain | Group | WithDelay
+WorkflowType = Message[typing.Any] | Chain | Group | WithDelay
 
-LazyWorkflow = typing.Callable[[], dict]
-SerializedCompletionCallback = tuple[str, dict | LazyWorkflow | None, bool]
+LazyWorkflow = typing.Callable[[], dict[str, typing.Any]]
+SerializedCompletionCallback = tuple[str, dict[str, typing.Any] | LazyWorkflow | None, bool]
 SerializedCompletionCallbacks = list[SerializedCompletionCallback]
 
 
-def walk_messages(workflow: WorkflowType) -> typing.Iterator[Message]:
+def walk_messages(workflow: WorkflowType) -> typing.Iterator[Message[typing.Any]]:
     """Yield every Message in a workflow tree, in definition order.
 
     Useful for stamping custom options on every message before calling

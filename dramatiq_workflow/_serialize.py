@@ -9,7 +9,7 @@ from ._models import (
 )
 
 
-def serialize_workflow(workflow: WorkflowType | None) -> dict | None:
+def serialize_workflow(workflow: WorkflowType | None) -> dict[str, typing.Any] | None:
     """
     Return a serialized version of the workflow that can be JSON-encoded.
     """
@@ -71,7 +71,7 @@ def unserialize_workflow_or_none(workflow: typing.Any) -> WorkflowType | None:
     return _unserialize_workflow_from_dict(workflow)
 
 
-def _unserialize_workflow_from_dict(workflow: dict) -> WorkflowType:
+def _unserialize_workflow_from_dict(workflow: dict[str, typing.Any]) -> WorkflowType:
     """Helper to unserialize from a dict, assuming it's not None and is a dict."""
     workflow_type = workflow.pop("__type__")
     match workflow_type:

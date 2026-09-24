@@ -70,7 +70,7 @@ class WorkflowMiddlewareTests(unittest.TestCase):
         Creates a dramatiq MessageProxy object with given options.
         """
         message_id = 1  # Simplistic message ID for testing
-        message = dramatiq.Message(
+        message: dramatiq.Message[Any] = dramatiq.Message(
             message_id=str(message_id),
             message_timestamp=message_timestamp,
             queue_name="default",
@@ -146,7 +146,7 @@ class WorkflowMiddlewareTests(unittest.TestCase):
 
         # Create a workflow that will be lazy loaded
         serialized_workflow = self._create_serialized_workflow()
-        callbacks = [("barrier_1", serialized_workflow, True)]
+        callbacks: SerializedCompletionCallbacks = [("barrier_1", serialized_workflow, True)]
 
         # Store it, which will convert it to a lazy workflow
         callbacks_ref = storage.store(callbacks)

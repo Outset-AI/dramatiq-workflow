@@ -372,7 +372,7 @@ class WorkflowTests(unittest.TestCase):
     def test_unserialize_lazy_workflow(self):
         workflow = Chain(self.task.message())
         serialized = serialize_workflow(workflow)
-        self.assertIsNotNone(serialized)
+        assert serialized is not None
 
         lazy_loader = MyLazyLoader(serialized)
         self.assertFalse(lazy_loader.loaded)

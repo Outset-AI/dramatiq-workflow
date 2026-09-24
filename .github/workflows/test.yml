@@ -46,5 +46,8 @@ jobs:
         print(f"Dramatiq {dramatiq.__version__}")
         PY
 
+    - name: Type check
+      run: make typecheck
+
     - name: Run tests
       run: make test

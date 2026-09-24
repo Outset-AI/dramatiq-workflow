@@ -1,6 +1,9 @@
-.PHONY: test
+.PHONY: test typecheck
 test:
 	pytest dramatiq_workflow
+
+typecheck:
+	mypy dramatiq_workflow
 
 release:
 	pip install twine setuptools wheel
