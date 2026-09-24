@@ -66,7 +66,7 @@ class WalkMessagesTests(unittest.TestCase):
 
     def test_unsupported_type_raises_type_error(self) -> None:
         with self.assertRaises(TypeError):
-            list(walk_messages("not a workflow"))  # type: ignore[arg-type]
+            list(walk_messages("not a workflow"))  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
 
     def test_is_a_generator(self) -> None:
         # Make sure it's lazy — mutations during iteration should affect yields

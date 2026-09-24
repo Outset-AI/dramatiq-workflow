@@ -5,7 +5,7 @@ import dramatiq.rate_limits
 
 
 class Chain:
-    def __init__(self, *tasks: "WorkflowType"):
+    def __init__(self, *tasks: "WorkflowType") -> None:
         self.tasks = list(tasks)
 
     def __str__(self) -> str:
@@ -16,7 +16,7 @@ class Chain:
 
 
 class Group:
-    def __init__(self, *tasks: "WorkflowType"):
+    def __init__(self, *tasks: "WorkflowType") -> None:
         self.tasks = list(tasks)
 
     def __str__(self) -> str:
@@ -27,7 +27,7 @@ class Group:
 
 
 class WithDelay:
-    def __init__(self, task: "WorkflowType", delay: int):
+    def __init__(self, task: "WorkflowType", delay: int) -> None:
         self.task = task
         self.delay = delay
 

@@ -28,7 +28,7 @@ class DedupWorkflowCallbackStorageTests(unittest.TestCase):
         self.storage = MyDedupStorage()
 
     def test_store_and_retrieve(self) -> None:
-        workflow_dict = {"__type__": "chain", "children": []}
+        workflow_dict: dict[str, Any] = {"__type__": "chain", "children": []}
         callbacks: SerializedCompletionCallbacks = [
             ("id1", workflow_dict, False),
             ("id2", None, True),
@@ -83,7 +83,7 @@ class DedupWorkflowCallbackStorageTests(unittest.TestCase):
         # but instead use its reference.
 
         # 1. Store a workflow and retrieve it.
-        workflow_dict = {"__type__": "chain", "children": []}
+        workflow_dict: dict[str, Any] = {"__type__": "chain", "children": []}
         callbacks1: SerializedCompletionCallbacks = [("id1", workflow_dict, False)]
         callbacks_ref1 = self.storage.store(callbacks1)
         retrieved_callbacks1 = self.storage.retrieve(callbacks_ref1)

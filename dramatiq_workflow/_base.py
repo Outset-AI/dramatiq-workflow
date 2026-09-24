@@ -180,7 +180,7 @@ class Workflow:
             # We reset the message timestamp to better represent the time the
             # message was actually enqueued.  This is to avoid tripping the max_age
             # check in the broker.
-            message_timestamp=time.time() * 1000,
+            message_timestamp=int(time.time() * 1000),
             options=options,
         )
 

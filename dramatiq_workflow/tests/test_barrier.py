@@ -33,7 +33,7 @@ class AtMostOnceBarrierTests(unittest.TestCase):
         If the store is emptied, the barrier should not be released.
         """
         self.barrier.create(self.parties)
-        self.backend.db = {}
+        self.backend.db.clear()
         for _ in range(self.parties):
             result = self.barrier.wait(block=False)
             self.assertFalse(result)

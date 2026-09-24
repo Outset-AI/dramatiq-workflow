@@ -35,10 +35,11 @@ class WorkflowTests(unittest.TestCase):
         )
         type(self.broker).middleware = self.middleware_list
 
+        def make_message(*args: Any, **kwargs: Any) -> dramatiq.Message[Any]:
+            return self.__make_message(self.__generate_id(), *args, **kwargs)
+
         self.task = mock.MagicMock()
-        self.task.message.side_effect = lambda *args, **kwargs: self.__make_message(
-            self.__generate_id(), *args, **kwargs
-        )
+        self.task.message.side_effect = make_message
         self.message_ids: list[int] = []
         self.message_timestamp = 1717526084640
 
@@ -52,13 +53,12 @@ class WorkflowTests(unittest.TestCase):
         message_id: int,
         *args: Any,
         message_options: dict[str, Any] = {},
-        message_timestamp: float | None = None,
+        message_timestamp: int | None = None,
         **kwargs: Any,
     ) -> dramatiq.Message[Any]:
         return dramatiq.Message(
             message_id=str(message_id),
-            # Workflow stamps float timestamps (time.time() * 1000) via Message.copy, though dramatiq types it int.
-            message_timestamp=message_timestamp or self.message_timestamp,  # type: ignore[arg-type]
+            message_timestamp=message_timestamp or self.message_timestamp,
             queue_name="default",
             actor_name="task",
             args=args,
@@ -69,7 +69,7 @@ class WorkflowTests(unittest.TestCase):
     @mock.patch("dramatiq_workflow._base.time.time")
     def test_simple_workflow(self, time_mock: mock.MagicMock) -> None:
         time_mock.return_value = 1717526000.12
-        updated_timestamp = time_mock.return_value * 1000
+        updated_timestamp = int(time_mock.return_value * 1000)
         workflow = Workflow(
             Chain(
                 self.task.message(),
@@ -234,7 +234,7 @@ class WorkflowTests(unittest.TestCase):
         self, time_mock: mock.MagicMock, noop_message_mock: mock.MagicMock
     ) -> None:
         time_mock.return_value = 1717526000.12
-        updated_timestamp = time_mock.return_value * 1000
+        updated_timestamp = int(time_mock.return_value * 1000)
 
         original_noop_message = self.__make_message(999)
         noop_message_mock.return_value = original_noop_message
@@ -270,7 +270,7 @@ class WorkflowTests(unittest.TestCase):
     @mock.patch("dramatiq_workflow._base.time.time")
     def test_chain_with_delay(self, time_mock: mock.MagicMock) -> None:
         time_mock.return_value = 1717526000.12
-        updated_timestamp = time_mock.return_value * 1000
+        updated_timestamp = int(time_mock.return_value * 1000)
         workflow = Workflow(
             WithDelay(
                 Chain(self.task.message(), self.task.message()),
@@ -315,7 +315,7 @@ class WorkflowTests(unittest.TestCase):
     @mock.patch("dramatiq_workflow._base.time.time")
     def test_group_with_delay(self, time_mock: mock.MagicMock) -> None:
         time_mock.return_value = 1717526000.12
-        updated_timestamp = time_mock.return_value * 1000
+        updated_timestamp = int(time_mock.return_value * 1000)
         workflow = Workflow(
             WithDelay(
                 Group(self.task.message(), self.task.message()),
@@ -395,7 +395,7 @@ class WorkflowTests(unittest.TestCase):
     @mock.patch("dramatiq_workflow._base.time.time")
     def test_additive_delays(self, time_mock: mock.MagicMock) -> None:
         time_mock.return_value = 1717526000.12
-        updated_timestamp = time_mock.return_value * 1000
+        updated_timestamp = int(time_mock.return_value * 1000)
         workflow = Workflow(
             WithDelay(
                 Group(
@@ -451,7 +451,7 @@ class WorkflowTests(unittest.TestCase):
     @mock.patch("dramatiq_workflow._base.time.time")
     def test_nested_delays(self, time_mock: mock.MagicMock) -> None:
         time_mock.return_value = 1717526000.12
-        updated_timestamp = time_mock.return_value * 1000
+        updated_timestamp = int(time_mock.return_value * 1000)
         workflow = Workflow(
             WithDelay(
                 WithDelay(
