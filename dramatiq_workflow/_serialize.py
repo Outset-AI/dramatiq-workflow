@@ -43,7 +43,7 @@ def serialize_workflow(workflow: WorkflowType | None) -> dict[str, typing.Any] |
     raise TypeError(f"Unsupported workflow type: {type(workflow)}")
 
 
-def unserialize_workflow(workflow: typing.Any) -> WorkflowType:
+def unserialize_workflow(workflow: object) -> WorkflowType:
     """
     Return an unserialized version of the workflow that can be used to create
     a Workflow instance.
@@ -54,7 +54,7 @@ def unserialize_workflow(workflow: typing.Any) -> WorkflowType:
     return result
 
 
-def unserialize_workflow_or_none(workflow: typing.Any) -> WorkflowType | None:
+def unserialize_workflow_or_none(workflow: object) -> WorkflowType | None:
     """
     Return an unserialized version of the workflow that can be used to create
     a Workflow instance.

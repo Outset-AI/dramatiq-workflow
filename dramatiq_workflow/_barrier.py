@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 
 import dramatiq.rate_limits
 
@@ -20,10 +19,8 @@ class AtMostOnceBarrier(dramatiq.rate_limits.Barrier):
     barrier but just before it has a chance to schedule the callbacks.
     """
 
-    def __init__(
-        self, backend: dramatiq.rate_limits.RateLimiterBackend, key: str, *args: Any, ttl: int = 900000
-    ) -> None:
-        super().__init__(backend, key, *args, ttl=ttl)
+    def __init__(self, backend: dramatiq.rate_limits.RateLimiterBackend, key: str, *, ttl: int = 900000) -> None:
+        super().__init__(backend, key, ttl=ttl)
         self.ran_key = f"{key}_ran"
 
     def create(self, parties: int) -> bool:
@@ -31,14 +28,14 @@ class AtMostOnceBarrier(dramatiq.rate_limits.Barrier):
         created: bool = super().create(parties)
         return created
 
-    def wait(self, *args: Any, block: bool = True, timeout: int | None = None) -> bool:
+    def wait(self, *, block: bool = True, timeout: int | None = None) -> bool:
         if block:
             # Blocking with an AtMostOnceBarrier is not supported as it could
             # lead to clients waiting indefinitely if the barrier already
             # released.
             raise ValueError("Blocking is not supported by AtMostOnceBarrier")
 
-        released: bool = super().wait(*args, block=False)
+        released: bool = super().wait(block=False)
         if released:
             never_released: bool = self.backend.incr(self.ran_key, 1, 0, self.ttl)
             if not never_released:

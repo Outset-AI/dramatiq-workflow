@@ -39,6 +39,8 @@ class WithDelay:
 
 
 Message = dramatiq.Message
+# Not Message[object]: Message's type parameter is invariant before dramatiq
+# 1.18, so Message[None] etc. would be rejected there.
 WorkflowType = Message[typing.Any] | Chain | Group | WithDelay
 
 LazyWorkflow = typing.Callable[[], dict[str, typing.Any]]
