@@ -20,12 +20,3 @@ untyped_calls_exclude = ["dramatiq"]
 module = "dramatiq_workflow._barrier"
 disallow_untyped_calls = false
 
-[[tool.mypy.overrides]]
-module = "dramatiq_workflow.tests.*"
-# Tests are held to default mypy checking, not strict. `strict` itself can't be set per module.
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
-disallow_untyped_calls = false
-disallow_any_generics = false
-warn_return_any = false
-check_untyped_defs = true

@@ -5,29 +5,29 @@ from .._models import SerializedCompletionCallbacks
 from .._storage import DedupWorkflowCallbackStorage
 
 
-class MyDedupStorage(DedupWorkflowCallbackStorage):
-    def __init__(self):
-        self.workflows = {}
-        self.callbacks = {}
-        self.workflow_store_calls = []
-        self.workflow_load_calls = []
+class MyDedupStorage(DedupWorkflowCallbackStorage[str]):
+    def __init__(self) -> None:
+        self.workflows: dict[str, dict[str, Any]] = {}
+        self.callbacks: dict[Any, Any] = {}
+        self.workflow_store_calls: list[tuple[str, dict[str, Any]]] = []
+        self.workflow_load_calls: list[tuple[str, str]] = []
 
-    def _store_workflow(self, id: str, workflow: dict) -> Any:
+    def _store_workflow(self, id: str, workflow: dict[str, Any]) -> str:
         self.workflow_store_calls.append((id, workflow))
         ref = f"workflow-ref-{id}"
         self.workflows[ref] = workflow
         return ref
 
-    def _load_workflow(self, id: str, ref: Any) -> dict:
+    def _load_workflow(self, id: str, ref: str) -> dict[str, Any]:
         self.workflow_load_calls.append((id, ref))
         return self.workflows[ref]
 
 
 class DedupWorkflowCallbackStorageTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.storage = MyDedupStorage()
 
-    def test_store_and_retrieve(self):
+    def test_store_and_retrieve(self) -> None:
         workflow_dict = {"__type__": "chain", "children": []}
         callbacks: SerializedCompletionCallbacks = [
             ("id1", workflow_dict, False),
@@ -66,8 +66,8 @@ class DedupWorkflowCallbackStorageTests(unittest.TestCase):
         self.assertEqual(self.storage.workflow_load_calls[0], ("id1", "workflow-ref-id1"))
         self.assertEqual(loaded_workflow, workflow_dict)
 
-    def test_store_with_unsupported_workflow_type(self):
-        def unsupported_lazy_workflow():
+    def test_store_with_unsupported_workflow_type(self) -> None:
+        def unsupported_lazy_workflow() -> dict[str, Any]:
             return {"__type__": "chain", "children": []}
 
         callbacks: SerializedCompletionCallbacks = [
@@ -77,7 +77,7 @@ class DedupWorkflowCallbackStorageTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             self.storage.store(callbacks)
 
-    def test_store_with_already_lazy_loaded_workflow(self):
+    def test_store_with_already_lazy_loaded_workflow(self) -> None:
         # This test ensures that when we store a workflow that has already been
         # loaded and wrapped by the storage, we don't try to store it again,
         # but instead use its reference.
