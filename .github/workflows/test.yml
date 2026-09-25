@@ -46,5 +46,17 @@ jobs:
         print(f"Dramatiq {dramatiq.__version__}")
         PY
 
+    - name: Type check
+      run: make typecheck
+
+    # Pre-1.0 / fast-moving checkers: report, but don't fail the build.
+    - name: Type check (pyrefly)
+      run: make pyrefly
+      continue-on-error: true
+
+    - name: Type check (ty)
+      run: make ty
+      continue-on-error: true
+
     - name: Run tests
       run: make test

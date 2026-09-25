@@ -60,25 +60,27 @@ CompletionCallbacksWithWorkflowRef = list[tuple[str, WorkflowRefT | None, bool]]
 
 
 class _LazyLoadedWorkflow(Generic[WorkflowRefT]):
-    def __init__(self, ref: Any, load_func: LazyWorkflow):
+    def __init__(self, ref: WorkflowRefT, load_func: LazyWorkflow) -> None:
         self.ref = ref
         self.load_func = load_func
 
-    def __call__(self) -> dict:
+    def __call__(self) -> dict[str, Any]:
         return self.load_func()
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"_LazyLoadedWorkflow({self.ref})"
 
 
-class DedupWorkflowCallbackStorage(CallbackStorage[CompletionCallbacksWithWorkflowRef], abc.ABC, Generic[WorkflowRefT]):
+class DedupWorkflowCallbackStorage(
+    CallbackStorage[CompletionCallbacksWithWorkflowRef[WorkflowRefT]], abc.ABC, Generic[WorkflowRefT]
+):
     """
     An abstract storage backend that separates storage of workflows from
     callbacks, allowing for deduplication of workflows.
     """
 
     @abc.abstractmethod
-    def _store_workflow(self, id: str, workflow: dict) -> WorkflowRefT:
+    def _store_workflow(self, id: str, workflow: dict[str, Any]) -> WorkflowRefT:
         """
         Stores a workflow and returns a reference to it. The `id` can be used
         to deduplicate workflows, and the `workflow` is the actual workflow to
@@ -88,7 +90,7 @@ class DedupWorkflowCallbackStorage(CallbackStorage[CompletionCallbacksWithWorkfl
         raise NotImplementedError
 
     @abc.abstractmethod
-    def _load_workflow(self, id: str, ref: WorkflowRefT) -> dict:
+    def _load_workflow(self, id: str, ref: WorkflowRefT) -> dict[str, Any]:
         """
         Loads a workflow using the deduplication ID and reference previously
         returned by `store_workflow`.
@@ -121,11 +123,14 @@ class DedupWorkflowCallbackStorage(CallbackStorage[CompletionCallbacksWithWorkfl
         """
         new_callbacks: SerializedCompletionCallbacks = []
         for completion_id, workflow_ref, is_group in ref:
-            if workflow_ref is not None and not callable(workflow_ref):
-                workflow_ref = _LazyLoadedWorkflow(
+            remaining_workflow: LazyWorkflow | None = None
+            if callable(workflow_ref):
+                remaining_workflow = cast(LazyWorkflow, workflow_ref)
+            elif workflow_ref is not None:
+                remaining_workflow = _LazyLoadedWorkflow(
                     ref=workflow_ref,
                     load_func=partial(self._load_workflow, completion_id, workflow_ref),
                 )
-            new_callbacks.append((completion_id, workflow_ref, is_group))
+            new_callbacks.append((completion_id, remaining_workflow, is_group))
 
         return new_callbacks

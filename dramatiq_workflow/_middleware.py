@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 import dramatiq
 import dramatiq.rate_limits
@@ -18,18 +19,23 @@ class WorkflowMiddleware(dramatiq.Middleware):
         self,
         rate_limiter_backend: dramatiq.rate_limits.RateLimiterBackend,
         barrier_type: type[dramatiq.rate_limits.Barrier] = AtMostOnceBarrier,
-        callback_storage: CallbackStorage | None = None,
-    ):
+        callback_storage: CallbackStorage[Any] | None = None,
+    ) -> None:
         self.rate_limiter_backend = rate_limiter_backend
         self.barrier_type = barrier_type
-        self.callback_storage = callback_storage or InlineCallbackStorage()
+        self.callback_storage: CallbackStorage[Any] = callback_storage or InlineCallbackStorage()
 
-    def after_process_boot(self, broker: dramatiq.Broker):
+    def after_process_boot(self, broker: dramatiq.Broker) -> None:
         broker.declare_actor(workflow_noop)
 
     def after_process_message(
-        self, broker: dramatiq.Broker, message: dramatiq.broker.MessageProxy, *, result=None, exception=None
-    ):
+        self,
+        broker: dramatiq.Broker,
+        message: dramatiq.broker.MessageProxy,
+        *,
+        result: Any | None = None,
+        exception: BaseException | None = None,
+    ) -> None:
         if exception is not None:
             # TODO: Add a way to handle exceptions in the workflow?
             return
@@ -46,7 +52,7 @@ class WorkflowMiddleware(dramatiq.Middleware):
 
     def _process_completion_callbacks(
         self, broker: dramatiq.Broker, completion_callbacks: SerializedCompletionCallbacks
-    ):
+    ) -> None:
         # Go through the completion callbacks backwards until we hit the first non-completed barrier
         while len(completion_callbacks) > 0:
             completion_id, remaining_workflow, propagate = completion_callbacks[-1]
@@ -70,7 +76,7 @@ class WorkflowMiddleware(dramatiq.Middleware):
 
 
 @dramatiq.actor
-def workflow_noop():
+def workflow_noop() -> None:
     """
     This task does nothing. It is used as a placeholder when a Group or a Chain
     has no tasks. This allows us to schedule the execution of the completion
