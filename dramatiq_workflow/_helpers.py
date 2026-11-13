@@ -1,6 +1,11 @@
+from typing import TYPE_CHECKING
+
 import dramatiq
 
 from ._models import SerializedCompletionCallbacks, WorkflowType
+
+if TYPE_CHECKING:
+    from ._base import Workflow
 
 
 def workflow_with_completion_callbacks(
@@ -8,7 +13,7 @@ def workflow_with_completion_callbacks(
     broker: dramatiq.Broker,
     completion_callbacks: SerializedCompletionCallbacks,
     delay: int | None = None,
-):
+) -> "Workflow":
     from ._base import Workflow
 
     w = Workflow(workflow, broker)

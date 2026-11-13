@@ -1,4 +1,5 @@
 import unittest
+from typing import Any
 from unittest import mock
 
 import dramatiq
@@ -9,17 +10,17 @@ from .._serialize import serialize_workflow, unserialize_workflow
 
 
 class MyLazyLoader:
-    def __init__(self, workflow: dict):
+    def __init__(self, workflow: dict[str, Any]) -> None:
         self._workflow = workflow
         self.loaded = False
 
-    def __call__(self) -> dict:
+    def __call__(self) -> dict[str, Any]:
         self.loaded = True
         return self._workflow
 
 
 class WorkflowTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.rate_limiter_backend = mock.create_autospec(dramatiq.rate_limits.RateLimiterBackend, instance=True)
         self.barrier = mock.create_autospec(dramatiq.rate_limits.Barrier)
         self.broker = mock.MagicMock()
@@ -34,21 +35,29 @@ class WorkflowTests(unittest.TestCase):
         )
         type(self.broker).middleware = self.middleware_list
 
+        def make_message(*args: Any, **kwargs: Any) -> dramatiq.Message[Any]:
+            return self.__make_message(self.__generate_id(), *args, **kwargs)
+
         self.task = mock.MagicMock()
-        self.task.message.side_effect = lambda *args, **kwargs: self.__make_message(
-            self.__generate_id(), *args, **kwargs
-        )
-        self.message_ids = []
+        self.task.message.side_effect = make_message
+        self.message_ids: list[int] = []
         self.message_timestamp = 1717526084640
 
-    def __generate_id(self):
+    def __generate_id(self) -> int:
         current_id = len(self.message_ids) + 1
         self.message_ids.append(current_id)
         return current_id
 
-    def __make_message(self, message_id, *args, message_options={}, message_timestamp=None, **kwargs):
+    def __make_message(
+        self,
+        message_id: int,
+        *args: Any,
+        message_options: dict[str, Any] = {},
+        message_timestamp: int | None = None,
+        **kwargs: Any,
+    ) -> dramatiq.Message[Any]:
         return dramatiq.Message(
-            message_id=message_id,
+            message_id=str(message_id),
             message_timestamp=message_timestamp or self.message_timestamp,
             queue_name="default",
             actor_name="task",
@@ -58,9 +67,9 @@ class WorkflowTests(unittest.TestCase):
         )
 
     @mock.patch("dramatiq_workflow._base.time.time")
-    def test_simple_workflow(self, time_mock):
+    def test_simple_workflow(self, time_mock: mock.MagicMock) -> None:
         time_mock.return_value = 1717526000.12
-        updated_timestamp = time_mock.return_value * 1000
+        updated_timestamp = int(time_mock.return_value * 1000)
         workflow = Workflow(
             Chain(
                 self.task.message(),
@@ -111,7 +120,7 @@ class WorkflowTests(unittest.TestCase):
                                                         "args": (),
                                                         "kwargs": {},
                                                         "options": {},
-                                                        "message_id": 2,
+                                                        "message_id": "2",
                                                         "message_timestamp": self.message_timestamp,
                                                     },
                                                     {
@@ -121,7 +130,7 @@ class WorkflowTests(unittest.TestCase):
                                                         "args": (),
                                                         "kwargs": {},
                                                         "options": {},
-                                                        "message_id": 3,
+                                                        "message_id": "3",
                                                         "message_timestamp": self.message_timestamp,
                                                     },
                                                 ],
@@ -133,7 +142,7 @@ class WorkflowTests(unittest.TestCase):
                                                 "args": (),
                                                 "kwargs": {},
                                                 "options": {},
-                                                "message_id": 4,
+                                                "message_id": "4",
                                                 "message_timestamp": self.message_timestamp,
                                             },
                                             {
@@ -146,7 +155,7 @@ class WorkflowTests(unittest.TestCase):
                                                         "args": (),
                                                         "kwargs": {},
                                                         "options": {},
-                                                        "message_id": 5,
+                                                        "message_id": "5",
                                                         "message_timestamp": self.message_timestamp,
                                                     },
                                                     {
@@ -159,7 +168,7 @@ class WorkflowTests(unittest.TestCase):
                                                                 "args": (),
                                                                 "kwargs": {},
                                                                 "options": {},
-                                                                "message_id": 6,
+                                                                "message_id": "6",
                                                                 "message_timestamp": self.message_timestamp,
                                                             },
                                                             {
@@ -169,7 +178,7 @@ class WorkflowTests(unittest.TestCase):
                                                                 "args": (),
                                                                 "kwargs": {},
                                                                 "options": {},
-                                                                "message_id": 7,
+                                                                "message_id": "7",
                                                                 "message_timestamp": self.message_timestamp,
                                                             },
                                                         ],
@@ -186,7 +195,7 @@ class WorkflowTests(unittest.TestCase):
                                         "args": (),
                                         "kwargs": {},
                                         "options": {},
-                                        "message_id": 8,
+                                        "message_id": "8",
                                         "message_timestamp": self.message_timestamp,
                                     },
                                 ],
@@ -199,7 +208,7 @@ class WorkflowTests(unittest.TestCase):
             delay=None,
         )
 
-    def test_empty_chain_workflow(self):
+    def test_empty_chain_workflow(self) -> None:
         middleware = self.broker.middleware[0]
         middleware._process_completion_callbacks = mock.MagicMock()
 
@@ -209,7 +218,7 @@ class WorkflowTests(unittest.TestCase):
         self.broker.enqueue.assert_not_called()
         middleware._process_completion_callbacks.assert_called_once_with(self.broker, [])
 
-    def test_empty_group_workflow(self):
+    def test_empty_group_workflow(self) -> None:
         middleware = self.broker.middleware[0]
         middleware._process_completion_callbacks = mock.MagicMock()
 
@@ -221,9 +230,11 @@ class WorkflowTests(unittest.TestCase):
 
     @mock.patch("dramatiq_workflow._base.workflow_noop.message")
     @mock.patch("dramatiq_workflow._base.time.time")
-    def test_empty_chain_workflow_with_delay(self, time_mock, noop_message_mock):
+    def test_empty_chain_workflow_with_delay(
+        self, time_mock: mock.MagicMock, noop_message_mock: mock.MagicMock
+    ) -> None:
         time_mock.return_value = 1717526000.12
-        updated_timestamp = time_mock.return_value * 1000
+        updated_timestamp = int(time_mock.return_value * 1000)
 
         original_noop_message = self.__make_message(999)
         noop_message_mock.return_value = original_noop_message
@@ -246,20 +257,20 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(enqueued_message.message_timestamp, updated_timestamp)
         self.assertEqual(enqueued_message.options, {})
 
-    def test_missing_middleware(self):
+    def test_missing_middleware(self) -> None:
         self.broker = mock.MagicMock(middleware=[])
         workflow = Workflow(Chain(), broker=self.broker)
         with self.assertRaisesRegex(RuntimeError, "WorkflowMiddleware middleware not found"):
             workflow.run()
 
-    def test_unsupported_workflow(self):
+    def test_unsupported_workflow(self) -> None:
         with self.assertRaises(TypeError):
             Workflow(1).run()  # type: ignore
 
     @mock.patch("dramatiq_workflow._base.time.time")
-    def test_chain_with_delay(self, time_mock):
+    def test_chain_with_delay(self, time_mock: mock.MagicMock) -> None:
         time_mock.return_value = 1717526000.12
-        updated_timestamp = time_mock.return_value * 1000
+        updated_timestamp = int(time_mock.return_value * 1000)
         workflow = Workflow(
             WithDelay(
                 Chain(self.task.message(), self.task.message()),
@@ -287,7 +298,7 @@ class WorkflowTests(unittest.TestCase):
                                         "args": (),
                                         "kwargs": {},
                                         "options": {},
-                                        "message_id": 2,
+                                        "message_id": "2",
                                         "message_timestamp": self.message_timestamp,
                                     },
                                 ],
@@ -302,9 +313,9 @@ class WorkflowTests(unittest.TestCase):
         self.barrier.assert_called_once_with(self.rate_limiter_backend, mock.ANY, ttl=mock.ANY)
 
     @mock.patch("dramatiq_workflow._base.time.time")
-    def test_group_with_delay(self, time_mock):
+    def test_group_with_delay(self, time_mock: mock.MagicMock) -> None:
         time_mock.return_value = 1717526000.12
-        updated_timestamp = time_mock.return_value * 1000
+        updated_timestamp = int(time_mock.return_value * 1000)
         workflow = Workflow(
             WithDelay(
                 Group(self.task.message(), self.task.message()),
@@ -351,7 +362,7 @@ class WorkflowTests(unittest.TestCase):
             any_order=True,
         )
 
-    def test_serialize_unserialize(self):
+    def test_serialize_unserialize(self) -> None:
         workflow = Workflow(
             Chain(
                 self.task.message(),
@@ -369,10 +380,10 @@ class WorkflowTests(unittest.TestCase):
         unserialized = unserialize_workflow(serialized)
         self.assertEqual(workflow.workflow, unserialized)
 
-    def test_unserialize_lazy_workflow(self):
+    def test_unserialize_lazy_workflow(self) -> None:
         workflow = Chain(self.task.message())
         serialized = serialize_workflow(workflow)
-        self.assertIsNotNone(serialized)
+        assert serialized is not None
 
         lazy_loader = MyLazyLoader(serialized)
         self.assertFalse(lazy_loader.loaded)
@@ -382,9 +393,9 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(workflow, unserialized)
 
     @mock.patch("dramatiq_workflow._base.time.time")
-    def test_additive_delays(self, time_mock):
+    def test_additive_delays(self, time_mock: mock.MagicMock) -> None:
         time_mock.return_value = 1717526000.12
-        updated_timestamp = time_mock.return_value * 1000
+        updated_timestamp = int(time_mock.return_value * 1000)
         workflow = Workflow(
             WithDelay(
                 Group(
@@ -438,9 +449,9 @@ class WorkflowTests(unittest.TestCase):
         )
 
     @mock.patch("dramatiq_workflow._base.time.time")
-    def test_nested_delays(self, time_mock):
+    def test_nested_delays(self, time_mock: mock.MagicMock) -> None:
         time_mock.return_value = 1717526000.12
-        updated_timestamp = time_mock.return_value * 1000
+        updated_timestamp = int(time_mock.return_value * 1000)
         workflow = Workflow(
             WithDelay(
                 WithDelay(
@@ -461,7 +472,7 @@ class WorkflowTests(unittest.TestCase):
             delay=20,
         )
 
-    def test_middleware_is_cached(self):
+    def test_middleware_is_cached(self) -> None:
         workflow = Workflow(Chain(), broker=self.broker)
 
         # Access middleware property multiple times

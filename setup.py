@@ -10,6 +10,7 @@ setup(
     author_email="engineering@outset.ai",
     url="https://github.com/Outset-AI/dramatiq-workflow",
     packages=find_packages(),
+    package_data={"dramatiq_workflow": ["py.typed"]},
     install_requires=[
         "dramatiq>=1.10.0,<3.0.0",
     ],
@@ -17,6 +18,7 @@ setup(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
+        "Typing :: Typed",
     ],
     python_requires=">=3.10",
 )
