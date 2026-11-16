@@ -8,7 +8,7 @@ from dramatiq.rate_limits.backends import StubBackend
 
 from dramatiq_workflow import Chain, WorkflowMiddleware
 from dramatiq_workflow._barrier import AtMostOnceBarrier
-from dramatiq_workflow._constants import OPTION_KEY_CALLBACKS
+from dramatiq_workflow._constants import CALLBACK_BARRIER_TTL, OPTION_KEY_CALLBACKS
 from dramatiq_workflow._models import LazyWorkflow, SerializedCompletionCallbacks
 from dramatiq_workflow._serialize import serialize_workflow
 from dramatiq_workflow._storage import CallbackStorage
@@ -135,6 +135,27 @@ class WorkflowMiddlewareTests(unittest.TestCase):
         self.broker.enqueue.assert_not_called()
 
         # Calling again, barrier should be completed now
+        self.middleware.after_process_message(self.broker, message)
+        self.broker.enqueue.assert_called_once_with(self._make_message(message_timestamp=1337_000)._message, delay=None)
+
+    @mock.patch("dramatiq.rate_limits.backends.stub.time.monotonic")
+    @mock.patch("dramatiq_workflow._base.time.time")
+    def test_barrier_outlives_default_ttl_between_completions(
+        self, mock_time: mock.MagicMock, mock_monotonic: mock.MagicMock
+    ) -> None:
+        # A group whose tasks finish more than AtMostOnceBarrier's default TTL
+        # (15 minutes) apart must still wait for every task before continuing.
+        mock_time.return_value = 1337
+        mock_monotonic.return_value = 0.0
+        barrier = AtMostOnceBarrier(self.rate_limiter_backend, "barrier_1", ttl=CALLBACK_BARRIER_TTL)
+        barrier.create(3)
+        message = self._make_message({OPTION_KEY_CALLBACKS: [(barrier.key, self._create_serialized_workflow(), True)]})
+
+        for _ in range(2):
+            self.middleware.after_process_message(self.broker, message)
+            mock_monotonic.return_value += 60 * 60
+            self.broker.enqueue.assert_not_called()
+
         self.middleware.after_process_message(self.broker, message)
         self.broker.enqueue.assert_called_once_with(self._make_message(message_timestamp=1337_000)._message, delay=None)
 
