@@ -5,7 +5,7 @@ import dramatiq
 import dramatiq.rate_limits
 
 from ._barrier import AtMostOnceBarrier
-from ._constants import OPTION_KEY_CALLBACKS
+from ._constants import CALLBACK_BARRIER_TTL, OPTION_KEY_CALLBACKS
 from ._helpers import workflow_with_completion_callbacks
 from ._models import SerializedCompletionCallbacks
 from ._serialize import unserialize_workflow
@@ -56,7 +56,7 @@ class WorkflowMiddleware(dramatiq.Middleware):
         # Go through the completion callbacks backwards until we hit the first non-completed barrier
         while len(completion_callbacks) > 0:
             completion_id, remaining_workflow, propagate = completion_callbacks[-1]
-            barrier = self.barrier_type(self.rate_limiter_backend, completion_id)
+            barrier = self.barrier_type(self.rate_limiter_backend, completion_id, ttl=CALLBACK_BARRIER_TTL)
             if not barrier.wait(block=False):
                 logger.debug("Barrier not completed: %s", completion_id)
                 break
